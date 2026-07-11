@@ -54,7 +54,15 @@ jobs:
       - name: Run tests
         # pytest exit code 5 means "no tests collected" — allowed while the
         # repo is bootstrapping, so CI stays green until the first tests land.
-        run: pytest --tb=short || { code=$?; [ "$code" -eq 5 ] && echo "No tests collected yet — passing."; exit $((code == 5 ? 0 : code)); }
+        run: |
+          set +e
+          pytest --tb=short
+          code=$?
+          if [ "$code" -eq 5 ]; then
+            echo "No tests collected yet — passing."
+            exit 0
+          fi
+          exit "$code"
 
   secret-scan:
     name: secret-scan
@@ -64,7 +72,9 @@ jobs:
         with:
           fetch-depth: 0
 
+      # gitleaks-action requires a GITLEAKS_LICENSE key for org-owned repos,
+      # so run the CLI directly instead.
       - name: Scan for committed secrets
-        uses: gitleaks/gitleaks-action@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          curl -sSfL https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz | tar -xz gitleaks
+          ./gitleaks git --no-banner --redact .

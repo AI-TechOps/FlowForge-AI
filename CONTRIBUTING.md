@@ -1,5 +1,14 @@
 # Contributing to FlowForge-AI
 
+## One-time setup (required)
+
+After cloning, activate the repo's git hooks — they block accidental direct
+pushes to `main` (important since agents also work in this repo):
+
+```bash
+git config core.hooksPath .githooks
+```
+
 ## Workflow
 
 Direct pushes to `main` are blocked. All changes land through pull requests:

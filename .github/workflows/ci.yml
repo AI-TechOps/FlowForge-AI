@@ -39,10 +39,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # NOTE: re-add `cache: pip` here once a requirements.txt or
+      # pyproject.toml exists — with no dependency file setup-python's
+      # cache step errors out and fails the job.
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-          cache: pip
 
       - name: Install dependencies
         run: |

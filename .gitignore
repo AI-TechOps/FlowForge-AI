@@ -1,0 +1,22 @@
+# Local environment / secrets — never commit
+.env
+.env.*
+*.pem
+*.key
+
+# Claude Code local settings (machine-specific)
+.claude/settings.local.json
+
+# OS / editor
+.DS_Store
+.vscode/
+.idea/
+
+# Dependencies & build output
+node_modules/
+dist/
+build/
+__pycache__/
+*.pyc
+.venv/
+venv/

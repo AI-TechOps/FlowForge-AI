@@ -1,9 +1,7 @@
 # Code owners are automatically requested for review on every PR
 # that touches matching files. Branch protection requires their approval.
 #
-# Add teammates here as they join, e.g.:
-#   *  @raahimabsar @teammate1 @teammate2
-# or use an org team:
+# Add teammates here as they join, or use an org team:
 #   *  @AI-TechOps/maintainers
 
-*  @raahimabsar
+*  @raahimabsar @MuhammadUsman14

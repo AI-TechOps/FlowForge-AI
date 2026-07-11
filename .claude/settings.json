@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "deny": [
+      "Bash(git push)",
+      "Bash(git push origin)",
+      "Bash(git push origin main*)",
+      "Bash(git push -u origin main*)",
+      "Bash(git push --set-upstream origin main*)",
+      "Bash(git push origin HEAD:main*)",
+      "Bash(git push -f*)",
+      "Bash(git push --force*)",
+      "Bash(git push --no-verify*)",
+      "Bash(git config core.hooksPath*)",
+      "mcp__git__git_push"
+    ]
+  }
+}

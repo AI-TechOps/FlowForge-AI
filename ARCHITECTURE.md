@@ -141,7 +141,7 @@ Ingestion runs as a **background job** (Redis queue) — uploads return immediat
 ## View 4 — Data model (ER overview)
 
 ```
- organizations 1──* users            (org_id on every tenant table)
+ organizations 1──* users 1──* user_roles   (org_id on every tenant table)
  organizations 1──* documents 1──* chunks(embedding vector, page, section)
  organizations 1──* tickets   1──* runs 1──* approvals
                                         1──* audit_log
@@ -152,7 +152,8 @@ Ingestion runs as a **background job** (Redis queue) — uploads return immediat
 | Table | Key columns | Purpose |
 |---|---|---|
 | organizations | id, name | tenant root |
-| users | id, org_id, email, roles[], auth_subject | humans; roles = admin/operator/approver; auth_subject linked in Phase 4 |
+| users | id, org_id, email, auth_subject | humans; auth_subject linked in Phase 4 |
+| user_roles | user_id, role, created_at | role grants (admin/operator/approver); one row per grant, PK (user_id, role) |
 | documents | id, org_id, title, version, status, file_ref, error_message | uploaded knowledge |
 | chunks | id, org_id, document_id, chunk_index, text, embedding vector, embedding_model, page, section, token_count | RAG units; org_id denormalized for direct tenant filtering |
 | tickets | id, org_id, title, description, department, service, priority, status, external_ref, is_eval_seed, created_by | the issues |

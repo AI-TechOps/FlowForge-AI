@@ -7,8 +7,10 @@ Enterprise AI workflow automation platform. AI agents read support tickets, retr
 ## Documents in this repo
 
 - `CLAUDE.md` — standing context for Claude Code. Read first, every session.
-- `specs/00-mvp-definition.md` — the MVP: personas, journey, tools, screens, definition of done.
-- `specs/01-phase0-foundation.md` — first phase spec (foundation), awaiting review.
+- `ARCHITECTURE.md` — high-level design: system views, workflow, ingestion pipeline, data model.
+- `DECISIONS.md` — decisions D1–D12 with rationale, plus the personas in detail.
+- `specs/00-mvp-definition.md` — the MVP: personas, journey, tools, screens, definition of done (approved).
+- `specs/01-phase0-foundation.md` … `specs/08-phase7-ship.md` — one spec per phase (0–7), each awaiting review before its task plan is written.
 
 ## How we build: spec-driven development
 

@@ -66,10 +66,12 @@ No provider is imported directly anywhere except a single `llm/provider.py` fact
 ### 4. Tenant / org data model (schema foundation)
 Create the base ORM models with `org_id` from the start:
 - `organizations` (id, name, created_at)
-- `users` (id, org_id FK, email, hashed_password nullable for now, roles as array/enum, created_at)
+- `users` (id, org_id FK, email, auth_subject nullable — linked to the OAuth2 subject in Phase 4, roles as array/enum, created_at). No password column: auth is Auth0-only (Phase 4); we never store or handle passwords.
 - A `TenantBase` mixin or convention so every future table carries `org_id`.
 
 Migrations via Alembic. This phase creates the initial migration with `organizations` and `users` only. Seed one demo org and one admin user via a seed script (not a migration).
+
+Migration convention (applies to every later phase too): every migration ships a working `downgrade()`; the check is `upgrade → downgrade → upgrade` against a scratch database, run in CI or as part of the phase gate.
 
 ### 5. Health check
 - `GET /api/health` returns `{ "status": "ok", "db": "ok"|"error", "redis": "ok"|"error" }` — actually pings db and redis.
@@ -93,6 +95,7 @@ Migrations via Alembic. This phase creates the initial migration with `organizat
 - `GET /api/health` returns all-ok when db and redis are up.
 - The frontend page loads and shows a green backend-healthy indicator.
 - Alembic migration creates `organizations` and `users`; seed script inserts one org + one admin user.
+- CI guard for the runtime/development-time isolation rule (D6): nothing under `backend/app/` imports from `tests/`, `scripts/`, or `fixtures/` (import-linter contract or equivalent grep check).
 - `.env.example` documents every required var; app reads config from env.
 - README documents: how to run, how to seed, how to switch LLM provider.
 

@@ -1,8 +1,8 @@
 # Spec: Phase 1 — RAG Foundation
 
 **Status:** Draft — awaiting review
-**Owner:** Muhammad
-**Depends on:** 01-phase0-foundation.md (approved + built)
+**Owner:** FlowForge Code Owners
+**Depends on:** 01-phase0-foundation.md (approved + built), 09-demo-enterprise-corpus.md (defines the fixture corpus and eval seed set)
 **Gate to exit:** Phase 1 definition of done demoed + spec review of Phase 2
 
 ## What this phase delivers
@@ -34,10 +34,10 @@ Company knowledge becomes searchable. An Admin uploads a PDF/Markdown/text file;
 - `GET /api/documents` list (includes per-document chunk_count — the Phase 6 Knowledge screen shows it) + `GET /api/documents/{id}` status endpoint (Admin ingestion status view).
 - A thin debug endpoint `POST /api/retrieve` (dev-only, flag-gated) to test retrieval manually.
 
-### 5. Eval seed set (built NOW, not in Phase 5)
-- `fixtures/eval_tickets.json`: 15–20 tickets, each with input fields + labeled expected `category`, `urgency`, `recommended_team`.
-- Committed as fixtures this phase; the loader that inserts them into the `tickets` table (with `is_eval_seed=true`) ships in Phase 2, when that table exists. (The `tickets` table is a Phase 2 migration — Phase 1 cannot load into it.)
-- At least 3 knowledge documents in `fixtures/` (e.g., VPN policy, priority guidelines, password reset procedure) that the labels are grounded in.
+### 5. Eval seed set + fixture corpus (built NOW, not in Phase 5)
+- Defined in full by **spec 09 (Demo Enterprise & Knowledge Corpus)**: the Meridian Dynamics corpus (10 template-conforming docs across PDF/MD/TXT), `fixtures/enterprise/taxonomy.json`, and `fixtures/eval_tickets.json` (20 labeled eval tickets with grounding references + 5 demo tickets).
+- Committed as fixtures this phase; the loader that inserts tickets into the `tickets` table (with `is_eval_seed=true`) ships in Phase 2, when that table exists. (The `tickets` table is a Phase 2 migration — Phase 1 cannot load into it.)
+- Corpus drafted by Codex, reviewed doc-by-doc and label-by-label by the code owners (spec 09 gates G9.1–G9.4).
 
 ## Scope (out)
 - No agent, no LangGraph, no triage (Phase 2).
@@ -50,7 +50,7 @@ Company knowledge becomes searchable. An Admin uploads a PDF/Markdown/text file;
 - **G1.2 Retrieval sanity:** for 5 canned queries, the expected fixture doc appears in top-3. Queries + expected doc ids live in `fixtures/retrieval_checks.json`; a script asserts the hits. (Scripted check, not vibes.)
 - **G1.3 Tenant isolation:** retrieval for org A never returns org B chunks (test with two seeded orgs).
 - **G1.4 Failure path:** unsupported type → 415 at upload; oversized → 413 at upload; a corrupt file that passes upload → `failed` with a human-readable error_message within 60s of worker pickup; a worker killed mid-ingestion leaves a document that `reingest` recovers — never a permanently stuck `processing`.
-- **G1.5 Seed set review:** every eval ticket's labels are justifiable from the fixture docs (human review — Muhammad).
+- **G1.5 Seed set review:** every eval ticket's labels are justifiable from the fixture docs (human review — FlowForge Code Owners).
 
 ## Definition of done
 - Upload → background ingest → `ready` works for all three formats.

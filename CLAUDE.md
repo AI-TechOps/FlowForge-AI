@@ -75,9 +75,9 @@ Do NOT build a drag-and-drop agent builder. Agent configuration lives in code + 
 We separate deciding what to build from building it. For every feature:
 
 1. Write a spec (plain language: what it does, edge cases, out of scope) in `/specs`.
-2. Human review — Muhammad reads and approves the spec.
+2. Human review — the FlowForge Code Owners read and approve the spec.
 3. Break the spec into a numbered task plan.
-4. Human review — Muhammad approves the plan.
+4. Human review — the FlowForge Code Owners approve the plan.
 5. Implement task by task, one at a time, showing the diff for each.
 6. Atomic commit per task, not one giant commit per phase.
 

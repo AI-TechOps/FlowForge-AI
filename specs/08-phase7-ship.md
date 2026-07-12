@@ -1,7 +1,7 @@
 # Spec: Phase 7 — Ship (Deploy, Demo, Document)
 
 **Status:** Draft — awaiting review
-**Owner:** Muhammad
+**Owner:** FlowForge Code Owners
 **Depends on:** 07-phase6-dashboard.md (approved + built)
 **Gate to exit:** MVP declared complete
 

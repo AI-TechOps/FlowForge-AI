@@ -1,7 +1,7 @@
 # Spec: Phase 3 — Write Actions & Human Approval
 
 **Status:** Draft — awaiting review
-**Owner:** Muhammad
+**Owner:** FlowForge Code Owners
 **Depends on:** 03-phase2-triage-agent.md (approved + built)
 **Gate to exit:** Phase 3 definition of done demoed + spec review of Phase 4
 

@@ -1,7 +1,7 @@
 # Spec: Phase 4 — Authentication, Roles & Tenant Enforcement
 
 **Status:** Draft — awaiting review
-**Owner:** Muhammad
+**Owner:** FlowForge Code Owners
 **Depends on:** 04-phase3-actions-approval.md (approved + built)
 **Gate to exit:** Phase 4 definition of done demoed + spec review of Phase 5
 

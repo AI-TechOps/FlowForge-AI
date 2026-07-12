@@ -1,7 +1,7 @@
 # Spec: Phase 0 — Foundation
 
-**Status:** Draft — awaiting review
-**Owner:** Muhammad
+**Status:** Approved (2026-07-11, FlowForge Code Owners)
+**Owner:** FlowForge Code Owners
 **Depends on:** 00-mvp-definition.md
 
 ## What this phase delivers
@@ -44,7 +44,7 @@ flowforge-ai/
 
 ### 2. Docker Compose topology
 Four services:
-- `db` — postgres:16 image with pgvector. `init-db.sql` runs `CREATE EXTENSION IF NOT EXISTS vector;`
+- `db` — `pgvector/pgvector:pg16` image (extension ships pre-built). `init-db.sql` runs `CREATE EXTENSION IF NOT EXISTS vector;`
 - `redis` — redis:7
 - `backend` — builds from backend/Dockerfile, depends on db + redis, exposes 8000
 - `frontend` — builds from frontend/Dockerfile, exposes 5173, proxies /api to backend
@@ -66,10 +66,11 @@ No provider is imported directly anywhere except a single `llm/provider.py` fact
 ### 4. Tenant / org data model (schema foundation)
 Create the base ORM models with `org_id` from the start:
 - `organizations` (id, name, created_at)
-- `users` (id, org_id FK, email, auth_subject nullable — linked to the OAuth2 subject in Phase 4, roles as array/enum, created_at). No password column: auth is Auth0-only (Phase 4); we never store or handle passwords.
+- `users` (id, org_id FK, email, auth_subject nullable — linked to the OAuth2 subject in Phase 4, created_at). No password column: auth is Auth0-only (Phase 4); we never store or handle passwords.
+- `user_roles` (user_id FK, role enum: `administrator` | `operator` | `approver`, created_at; PK on user_id+role). A user holds a role by having a row here; multiple roles = multiple rows.
 - A `TenantBase` mixin or convention so every future table carries `org_id`.
 
-Migrations via Alembic. This phase creates the initial migration with `organizations` and `users` only. Seed one demo org and one admin user via a seed script (not a migration).
+Migrations via Alembic. This phase creates the initial migration with `organizations`, `users`, and `user_roles` only. Seed one demo org and one admin user (with an `administrator` role row) via a seed script (not a migration).
 
 Migration convention (applies to every later phase too): every migration ships a working `downgrade()`; the check is `upgrade → downgrade → upgrade` against a scratch database, run in CI or as part of the phase gate.
 
@@ -84,20 +85,34 @@ Migration convention (applies to every later phase too): every migration ships a
 - Any of the ten MVP screens beyond a trivial health-status page.
 - AWS deployment (local Docker Compose only).
 
-## Key decisions to confirm before building
-1. Postgres image: use the `pgvector/pgvector:pg16` image (ships the extension) vs. plain postgres + manual install. **Proposed: pgvector/pgvector:pg16.**
-2. Roles storage: Postgres enum array on users vs. separate `user_roles` join table. **Proposed: array of role enums on users for MVP simplicity; note join table as the scale-up path.**
-3. Migrations: Alembic from Phase 0. **Proposed: yes** — cheaper than retrofitting.
-4. Async stack: SQLAlchemy 2.0 async + asyncpg. **Proposed: yes.**
+## Key decisions (confirmed 2026-07-11 by the FlowForge Code Owners)
+1. Postgres image: **`pgvector/pgvector:pg16`** (ships the extension) over plain postgres + manual install.
+2. Roles storage: **separate `user_roles` join table** over a Postgres enum array on `users`. Each role grant is its own row — no enum-array migration pain, and role grants can carry metadata (granted_by, expiry) later without a schema rework.
+3. Migrations: **Alembic from Phase 0** — cheaper than retrofitting.
+4. Async stack: **SQLAlchemy 2.0 async + asyncpg** — matches async FastAPI routes and LangGraph's async Postgres checkpointer.
 
 ## Definition of done for Phase 0
 - `docker compose up` starts all four services with no errors.
 - `GET /api/health` returns all-ok when db and redis are up.
 - The frontend page loads and shows a green backend-healthy indicator.
-- Alembic migration creates `organizations` and `users`; seed script inserts one org + one admin user.
+- Alembic migration creates `organizations`, `users`, and `user_roles`; seed script inserts one org + one admin user with an `administrator` role row.
 - CI guard for the runtime/development-time isolation rule (D6): nothing under `backend/app/` imports from `tests/`, `scripts/`, or `fixtures/` (import-linter contract or equivalent grep check).
 - `.env.example` documents every required var; app reads config from env.
 - README documents: how to run, how to seed, how to switch LLM provider.
 
-## Task plan
-*(To be filled after this spec is approved — this is the review gate.)*
+## Task plan (approved 2026-07-12 by the FlowForge Code Owners)
+
+One atomic commit per task. Tags per spec 10: **[CC]** = Claude Code, **[CX]** = Codex.
+
+1. **[CC] Backend scaffold** — `backend/` with `pyproject.toml` (fastapi, uvicorn, pydantic-settings, sqlalchemy[asyncio], asyncpg, alembic, redis), `app/main.py` with stub `GET /api/health`, ruff config.
+2. **[CC] Config system** — `app/config.py` via pydantic-settings; `.env.example` documenting all seven required vars.
+3. **[CC] Infra** — `infra/docker-compose.yml`: `db` (`pgvector/pgvector:pg16`) + `redis:7` with healthchecks; `init-db.sql` enabling the vector extension.
+4. **[CC] DB layer** — `app/db.py` (async engine + session factory), `TenantBase` mixin.
+5. **[CC] Models + initial migration** — `organizations`, `users`, `user_roles` ORM models; Alembic init; initial migration with working `downgrade()`.
+6. **[CC] Seed script** — `scripts/seed.py`: one demo org + one admin user + its `administrator` role row.
+7. **[CC] Real health check** — `/api/health` pings Postgres and Redis, returns per-dependency status.
+8. **[CC] Backend containerized** — `backend/Dockerfile`, compose service waiting on healthy db + redis.
+9. **[CC] Frontend scaffold** — Vite + React + TS, `App.tsx` green/red health indicator, Dockerfile, compose service with `/api` proxy.
+10. **[CC] LLM provider stub** — `app/llm/provider.py` interface + factory reading `LLM_PROVIDER`; nothing else imports a provider.
+11. **[CX] Dev tooling** — migration upgrade→downgrade→upgrade runner script + isolation-guard check (fails when anything under `backend/app/` imports from `tests/`/`scripts/`/`fixtures/`, verified by a planted-import self-test). **[CC]** wires both into CI.
+12. **[CC] Docs** — README: how to run, how to seed, how to switch LLM provider; Phase 0 definition-of-done walkthrough.

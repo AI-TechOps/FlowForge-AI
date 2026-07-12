@@ -1,7 +1,7 @@
 # Spec: FlowForge-AI MVP Definition
 
 **Status:** Approved
-**Owner:** Muhammad
+**Owner:** FlowForge Code Owners
 **Purpose:** The single source of truth for what the FlowForge-AI MVP is and when it is done. Every phase spec derives from this.
 
 ## Goal

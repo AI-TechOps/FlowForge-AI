@@ -1,7 +1,7 @@
 # Spec: Phase 2 — Triage Agent
 
 **Status:** Draft — awaiting review
-**Owner:** Muhammad
+**Owner:** FlowForge Code Owners
 **Depends on:** 02-phase1-rag.md (approved + built)
 **Gate to exit:** Phase 2 definition of done demoed + spec review of Phase 3
 

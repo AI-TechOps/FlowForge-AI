@@ -1,7 +1,7 @@
 # Spec: Phase 5 — Evaluation & Observability
 
 **Status:** Draft — awaiting review
-**Owner:** Muhammad
+**Owner:** FlowForge Code Owners
 **Depends on:** 05-phase4-auth-tenant.md (approved + built)
 **Gate to exit:** Phase 5 definition of done demoed + spec review of Phase 6
 

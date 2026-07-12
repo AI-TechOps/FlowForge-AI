@@ -1,7 +1,7 @@
 # Spec: Phase 6 — Frontend Dashboard (all MVP screens)
 
 **Status:** Draft — awaiting review
-**Owner:** Muhammad
+**Owner:** FlowForge Code Owners
 **Depends on:** 06-phase5-eval-observability.md (approved + built)
 **Gate to exit:** Phase 6 definition of done demoed + spec review of Phase 7
 

@@ -10,7 +10,9 @@ Enterprise AI workflow automation platform. AI agents read support tickets, retr
 - `ARCHITECTURE.md` — high-level design: system views, workflow, ingestion pipeline, data model.
 - `DECISIONS.md` — decisions D1–D12 with rationale, plus the personas in detail.
 - `specs/00-mvp-definition.md` — the MVP: personas, journey, tools, screens, definition of done (approved).
-- `specs/01-phase0-foundation.md` … `specs/08-phase7-ship.md` — one spec per phase (0–7), each awaiting review before its task plan is written.
+- `specs/01-phase0-foundation.md` … `specs/08-phase7-ship.md` — one spec per phase (0–7), each reviewed before its task plan is written. Phase 0 is approved.
+- `specs/09-demo-enterprise-corpus.md` — the fictional company (Meridian Dynamics), its documentation template, corpus, and labeled ticket set.
+- `specs/10-codex-integration.md` — Codex's lanes, boundaries, and the Claude↔Codex handoff protocol per phase.
 
 ## How we build: spec-driven development
 

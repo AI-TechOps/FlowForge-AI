@@ -135,10 +135,29 @@ Known caveat: Claude Code doesn't guarantee spec compliance — it can occasiona
 
 ---
 
-## Open items (as of this writing)
+## D13 — Spec ownership and approval belong to the code owners
 
-- **Phase 0 spec review gate:** `specs/01-phase0-foundation.md` proposes four decisions awaiting approval — (1) `pgvector/pgvector:pg16` Docker image, (2) roles as an enum array on `users` (join table as scale-up path), (3) Alembic migrations from day one, (4) SQLAlchemy 2.0 async + asyncpg. Approving these unlocks the Phase 0 task plan.
-- **Phase 0 task plan:** not yet written — deliberately left until the Phase 0 spec is approved (this is the review gate).
+Specs and plans are owned and approved by the **FlowForge Code Owners** — the reviewers listed in `.github/CODEOWNERS` — not any single named person. Everything in the repo is collectively owned; approval at each review gate (spec, plan, task) comes from a code owner. Spec `Owner:` fields and review-gate language reference "FlowForge Code Owners" accordingly.
+
+---
+
+## D14 — Phase 0 review gate resolved (2026-07-11)
+
+The four Phase 0 decisions were reviewed and confirmed by the code owners:
+
+1. **Postgres image:** `pgvector/pgvector:pg16` — extension ships pre-built.
+2. **Roles storage:** separate `user_roles` join table (over an enum array on `users`) — each role grant is its own row, avoiding Postgres enum-array migration pain and leaving room for grant metadata (granted_by, expiry) without a schema rework.
+3. **Migrations:** Alembic from Phase 0, every migration with a working `downgrade()`.
+4. **Async stack:** SQLAlchemy 2.0 async + asyncpg.
+
+`specs/01-phase0-foundation.md` is now **Approved**. Next gate: the Phase 0 task plan (write, then code-owner review, then build task by task).
+
+---
+
+## Open items (as of 2026-07-12)
+
+- **Build Phase 0.** Everything upstream is approved: the Phase 0 spec, its 12-task plan (in the spec), spec 09 (Meridian Dynamics corpus — built in Phase 1), and spec 10 (Codex integration — `AGENTS.md` now exists). Next actions: land the approval docs via PR, then implement Phase 0 tasks 1–12 (task 11 is Codex's).
+- **Phase 1 spec review:** next review gate after Phase 0 is built.
 
 ---
 

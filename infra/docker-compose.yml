@@ -28,5 +28,23 @@ services:
       timeout: 3s
       retries: 10
 
+  backend:
+    build: ../backend
+    environment:
+      DATABASE_URL: postgresql+asyncpg://flowforge:flowforge@db:5432/flowforge
+      REDIS_URL: redis://redis:6379/0
+      LLM_PROVIDER: ${LLM_PROVIDER:-ollama}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-nomic-embed-text}
+      APP_ENV: ${APP_ENV:-dev}
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
 volumes:
   db_data:

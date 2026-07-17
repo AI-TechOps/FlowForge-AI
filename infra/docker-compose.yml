@@ -46,5 +46,14 @@ services:
       redis:
         condition: service_healthy
 
+  frontend:
+    build: ../frontend
+    environment:
+      API_PROXY_TARGET: http://backend:8000
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend
+
 volumes:
   db_data:

@@ -89,8 +89,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--database-url",
         default=os.environ.get("MIGRATION_TEST_DATABASE_URL"),
         help=(
-            "dedicated scratch PostgreSQL URL; defaults to "
-            "MIGRATION_TEST_DATABASE_URL"
+            "dedicated scratch PostgreSQL URL; defaults to MIGRATION_TEST_DATABASE_URL"
         ),
     )
     parser.add_argument(

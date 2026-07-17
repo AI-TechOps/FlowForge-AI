@@ -12,7 +12,9 @@ import pytest
 
 def _psql_url(database_url: str) -> str:
     parsed = urlsplit(database_url)
-    return urlunsplit(("postgresql", parsed.netloc, parsed.path, parsed.query, parsed.fragment))
+    return urlunsplit(
+        ("postgresql", parsed.netloc, parsed.path, parsed.query, parsed.fragment)
+    )
 
 
 def _query(database_url: str, sql: str) -> list[str]:
@@ -40,7 +42,9 @@ def _query(database_url: str, sql: str) -> list[str]:
 def migrated_scratch_database(repository_root: Path) -> str:
     database_url = os.environ.get("MIGRATION_TEST_DATABASE_URL")
     if not database_url:
-        pytest.skip("MIGRATION_TEST_DATABASE_URL is required for schema acceptance tests")
+        pytest.skip(
+            "MIGRATION_TEST_DATABASE_URL is required for schema acceptance tests"
+        )
     if shutil.which("psql") is None:
         pytest.skip("psql is required for schema acceptance tests")
 

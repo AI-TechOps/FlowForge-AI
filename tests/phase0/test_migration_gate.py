@@ -38,7 +38,9 @@ def test_initial_migration_survives_upgrade_downgrade_upgrade(
 ) -> None:
     database_url = os.environ.get("MIGRATION_TEST_DATABASE_URL")
     if not database_url:
-        pytest.skip("MIGRATION_TEST_DATABASE_URL is required for the destructive scratch-DB gate")
+        pytest.skip(
+            "MIGRATION_TEST_DATABASE_URL is required for the destructive scratch-DB gate"
+        )
 
     result = subprocess.run(
         [sys.executable, str(migration_script), "--database-url", database_url],

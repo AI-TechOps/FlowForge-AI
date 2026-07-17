@@ -28,7 +28,9 @@ def test_isolation_guard_accepts_runtime_only_imports(
 ) -> None:
     app_dir = tmp_path / "backend" / "app"
     app_dir.mkdir(parents=True)
-    (app_dir / "main.py").write_text("import os\nfrom pathlib import Path\n", encoding="utf-8")
+    (app_dir / "main.py").write_text(
+        "import os\nfrom pathlib import Path\n", encoding="utf-8"
+    )
 
     result = _run_guard(guard_script, app_dir)
     assert result.returncode == 0, result.stdout + result.stderr

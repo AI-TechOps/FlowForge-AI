@@ -80,18 +80,26 @@ def _provider_imports(path: Path) -> set[str]:
     imported_roots: set[str] = set()
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
-            imported_roots.update(alias.name.split(".", maxsplit=1)[0] for alias in node.names)
+            imported_roots.update(
+                alias.name.split(".", maxsplit=1)[0] for alias in node.names
+            )
         elif isinstance(node, ast.ImportFrom) and node.module:
             imported_roots.add(node.module.split(".", maxsplit=1)[0])
     return imported_roots & PROVIDER_IMPORT_ROOTS
 
 
 def test_phase0_repository_skeleton_exists(repository_root: Path) -> None:
-    missing = [relative for relative in REQUIRED_PATHS if not (repository_root / relative).exists()]
+    missing = [
+        relative
+        for relative in REQUIRED_PATHS
+        if not (repository_root / relative).exists()
+    ]
     assert not missing, f"Phase 0 repository skeleton is missing: {missing}"
 
 
-def test_env_example_documents_the_complete_phase0_contract(repository_root: Path) -> None:
+def test_env_example_documents_the_complete_phase0_contract(
+    repository_root: Path,
+) -> None:
     env_path = repository_root / ".env.example"
     assert env_path.is_file(), ".env.example is required"
     missing = REQUIRED_ENVIRONMENT_KEYS - _dotenv_keys(env_path)
@@ -107,8 +115,12 @@ def test_provider_sdks_are_confined_to_the_factory(repository_root: Path) -> Non
     for path in sorted(app_dir.rglob("*.py")):
         provider_imports = _provider_imports(path)
         if provider_imports and path != factory:
-            violations[str(path.relative_to(repository_root))] = sorted(provider_imports)
-    assert not violations, f"provider SDK imports outside the provider factory: {violations}"
+            violations[str(path.relative_to(repository_root))] = sorted(
+                provider_imports
+            )
+    assert not violations, (
+        f"provider SDK imports outside the provider factory: {violations}"
+    )
 
 
 def test_readme_documents_phase0_operator_workflows(repository_root: Path) -> None:

@@ -14,7 +14,9 @@ EXPECTED_SERVICES = {"backend", "db", "frontend", "redis"}
 
 def _compose_config(compose_path: Path) -> dict[str, object]:
     if shutil.which("docker") is None:
-        pytest.skip("Docker CLI is unavailable; compose contract requires Docker Compose")
+        pytest.skip(
+            "Docker CLI is unavailable; compose contract requires Docker Compose"
+        )
     result = subprocess.run(
         ["docker", "compose", "-f", str(compose_path), "config", "--format", "json"],
         check=False,
@@ -35,7 +37,9 @@ def _published_targets(service: dict[str, object]) -> set[int]:
     return targets
 
 
-def test_compose_defines_the_locked_four_service_topology(repository_root: Path) -> None:
+def test_compose_defines_the_locked_four_service_topology(
+    repository_root: Path,
+) -> None:
     compose_path = repository_root / "infra" / "docker-compose.yml"
     assert compose_path.is_file(), "infra/docker-compose.yml is required"
     config = _compose_config(compose_path)

@@ -18,9 +18,7 @@ class User(TenantBase, TimestampMixin, Base):
     __tablename__ = "users"
     __table_args__ = (UniqueConstraint("org_id", "email", name="uq_users_org_email"),)
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     email: Mapped[str] = mapped_column(String(320), nullable=False)
     # OAuth2 subject, linked at first login in Phase 4. No password column:
     # auth is Auth0-only; we never store or handle passwords.

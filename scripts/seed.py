@@ -24,7 +24,9 @@ ADMIN_EMAIL = "admin@demo"
 async def seed() -> None:
     async with async_session_factory() as session:
         org = (
-            await session.execute(select(Organization).where(Organization.name == DEMO_ORG))
+            await session.execute(
+                select(Organization).where(Organization.name == DEMO_ORG)
+            )
         ).scalar_one_or_none()
         if org is None:
             org = Organization(name=DEMO_ORG)

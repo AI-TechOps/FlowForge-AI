@@ -40,15 +40,38 @@ Trivial fixes skip the spec. Real features do not.
 | 6 | Dashboard: all MVP screens on real data |
 | 7 | Ship: AWS free-tier deploy, demo, teardown, README |
 
-## Running (after Phase 0 is built)
+## Running
 
 ```bash
-cp .env.example .env      # fill in values
-docker compose -f infra/docker-compose.yml up
-# backend:  http://localhost:8000/api/health
-# frontend: http://localhost:5173
+cp .env.example .env                          # defaults work for docker compose
+docker compose -f infra/docker-compose.yml up --build
+# backend:  http://localhost:8000/api/health  -> {"status":"ok","db":"ok","redis":"ok"}
+# frontend: http://localhost:5173             -> green backend-healthy indicator
+```
+
+Apply migrations (one-time, with the stack up — alembic ships in the backend image):
+
+```bash
+docker compose -f infra/docker-compose.yml exec backend alembic upgrade head
+```
+
+Seed the demo org from the host (backend deps installed locally: `pip install -e backend`, with `.env` pointing at localhost):
+
+```bash
+python scripts/seed.py     # idempotent: demo org + admin@demo with administrator role
 ```
 
 ## LLM provider
 
-Model-agnostic by design. `LLM_PROVIDER=ollama` for local dev (free), `LLM_PROVIDER=openai` for final validation. Nothing imports a provider directly except the factory in `backend/app/llm/provider.py`.
+Model-agnostic by design (`backend/app/llm/provider.py` is the only module that knows providers exist). Switch via env:
+
+- `LLM_PROVIDER=ollama` (default) — local dev, free; set `OLLAMA_BASE_URL` if not on localhost.
+- `LLM_PROVIDER=openai` — final validation only; requires `OPENAI_API_KEY` (the factory refuses to start without it).
+
+## Phase 0 definition-of-done walkthrough
+
+1. `docker compose -f infra/docker-compose.yml up --build` — all four services start; db and redis have healthchecks, backend waits for both.
+2. `curl localhost:8000/api/health` — real pings: `{"status":"ok","db":"ok","redis":"ok"}`.
+3. Open `localhost:5173` — green dot, "backend ok".
+4. `alembic upgrade head` creates `organizations`, `users`, `user_roles`; `python scripts/seed.py` inserts the demo org + admin. Every migration has a working `downgrade()`.
+5. `.env.example` documents all seven required vars.

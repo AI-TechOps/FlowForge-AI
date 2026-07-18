@@ -33,7 +33,42 @@ def _forbidden_root(imported_name: str) -> str | None:
     return root if root in FORBIDDEN_IMPORT_ROOTS else None
 
 
-def _literal_import_name(node: ast.Call) -> str | None:
+class _DynamicImportBindings:
+    """Names a module binds that can perform a dynamic import.
+
+    Tracks aliases so `import importlib as loader` or
+    `from builtins import __import__ as imp` cannot slip past the guard.
+    """
+
+    def __init__(self) -> None:
+        self.importlib_modules: set[str] = {"importlib"}
+        self.builtins_modules: set[str] = {"builtins"}
+        self.import_functions: set[str] = {"__import__"}
+
+    def collect(self, tree: ast.AST) -> None:
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    root = alias.name.split(".", maxsplit=1)[0]
+                    bound = alias.asname or root
+                    if root == "importlib":
+                        self.importlib_modules.add(bound)
+                    elif root == "builtins":
+                        self.builtins_modules.add(bound)
+            elif isinstance(node, ast.ImportFrom):
+                if node.module == "importlib":
+                    for alias in node.names:
+                        if alias.name == "import_module":
+                            self.import_functions.add(alias.asname or alias.name)
+                elif node.module == "builtins":
+                    for alias in node.names:
+                        if alias.name == "__import__":
+                            self.import_functions.add(alias.asname or alias.name)
+
+
+def _literal_import_name(
+    node: ast.Call, bindings: _DynamicImportBindings
+) -> str | None:
     if not node.args:
         return None
     first_argument = node.args[0]
@@ -43,21 +78,21 @@ def _literal_import_name(node: ast.Call) -> str | None:
         return None
 
     function = node.func
-    if isinstance(function, ast.Name) and function.id == "__import__":
+    if isinstance(function, ast.Name) and function.id in bindings.import_functions:
         return first_argument.value
-    if (
-        isinstance(function, ast.Attribute)
-        and isinstance(function.value, ast.Name)
-        and function.value.id == "importlib"
-        and function.attr == "import_module"
-    ):
-        return first_argument.value
+    if isinstance(function, ast.Attribute) and isinstance(function.value, ast.Name):
+        owner = function.value.id
+        if owner in bindings.importlib_modules and function.attr == "import_module":
+            return first_argument.value
+        if owner in bindings.builtins_modules and function.attr == "__import__":
+            return first_argument.value
     return None
 
 
 class _ImportVisitor(ast.NodeVisitor):
-    def __init__(self, path: Path) -> None:
+    def __init__(self, path: Path, bindings: _DynamicImportBindings) -> None:
         self.path = path
+        self.bindings = bindings
         self.violations: list[Violation] = []
 
     def _record(self, node: ast.AST, imported_name: str) -> None:
@@ -83,7 +118,7 @@ class _ImportVisitor(ast.NodeVisitor):
         self.generic_visit(node)
 
     def visit_Call(self, node: ast.Call) -> None:  # noqa: N802
-        imported_name = _literal_import_name(node)
+        imported_name = _literal_import_name(node, self.bindings)
         if imported_name is not None:
             self._record(node, imported_name)
         self.generic_visit(node)
@@ -98,7 +133,9 @@ def find_violations(app_dir: Path) -> tuple[list[Violation], list[str]]:
         except (OSError, UnicodeError, SyntaxError) as exc:
             parse_errors.append(f"{path}: cannot inspect Python source: {exc}")
             continue
-        visitor = _ImportVisitor(path)
+        bindings = _DynamicImportBindings()
+        bindings.collect(tree)
+        visitor = _ImportVisitor(path, bindings)
         visitor.visit(tree)
         violations.extend(visitor.violations)
     return sorted(violations), parse_errors

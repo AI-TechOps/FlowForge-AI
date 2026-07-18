@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import os
 from pathlib import Path
+import re
 import subprocess
 import sys
 from typing import Mapping, Sequence
@@ -36,13 +37,16 @@ def database_name(database_url: str) -> str:
 def require_scratch_database(database_url: str) -> str:
     name = database_name(database_url)
     lowered = name.lower()
-    if lowered in SYSTEM_DATABASE_NAMES or not any(
-        marker in lowered for marker in SAFE_DATABASE_MARKERS
-    ):
+    # Markers must be whole, delimiter-separated tokens ("flowforge_scratch",
+    # "ci-db"), never substrings — "social" contains "ci" and "contest"
+    # contains "test", and this cycle DOWNGRADES TO BASE whatever it targets.
+    tokens = set(re.split(r"[_\-.]+", lowered))
+    if lowered in SYSTEM_DATABASE_NAMES or not tokens & set(SAFE_DATABASE_MARKERS):
         markers = ", ".join(SAFE_DATABASE_MARKERS)
         raise ValueError(
             f"refusing migration cycle for database {name!r}; a dedicated scratch "
-            f"database name must contain one of: {markers}"
+            f"database name must contain one of these tokens separated by "
+            f"'_', '-' or '.': {markers}"
         )
     return name
 

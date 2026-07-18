@@ -49,7 +49,10 @@ class OpenAIProvider(LLMProvider):
 def get_provider(settings: Settings | None = None) -> LLMProvider:
     settings = settings or get_settings()
     if settings.llm_provider == "openai":
-        if not settings.openai_api_key:
-            raise ValueError("LLM_PROVIDER=openai requires OPENAI_API_KEY to be set.")
-        return OpenAIProvider(settings.openai_api_key, settings.embedding_model)
+        api_key = (settings.openai_api_key or "").strip()
+        if not api_key:
+            raise ValueError(
+                "LLM_PROVIDER=openai requires OPENAI_API_KEY to be set to a non-blank value."
+            )
+        return OpenAIProvider(api_key, settings.embedding_model)
     return OllamaProvider(settings.ollama_base_url, settings.embedding_model)

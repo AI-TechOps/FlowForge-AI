@@ -18,14 +18,18 @@ async def _check_db() -> str:
 
 
 async def _check_redis() -> str:
-    client = aioredis.from_url(get_settings().redis_url)
+    # Client construction stays inside the guard: a malformed REDIS_URL must
+    # surface as {"redis": "error"}, never as an HTTP 500.
+    client = None
     try:
+        client = aioredis.from_url(get_settings().redis_url)
         await client.ping()
         return "ok"
     except Exception:
         return "error"
     finally:
-        await client.aclose()
+        if client is not None:
+            await client.aclose()
 
 
 @router.get("/api/health")

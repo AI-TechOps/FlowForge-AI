@@ -57,6 +57,9 @@ jobs:
       # Required by app settings at import time (seed-script gate); nothing
       # in the test job actually connects to Redis.
       REDIS_URL: redis://localhost:6379/0
+      # Phase 1 gates embed without Ollama via the deterministic fake
+      # provider (D15). Refused when APP_ENV=prod; CI runs as dev.
+      LLM_PROVIDER: fake
     steps:
       - uses: actions/checkout@v4
 

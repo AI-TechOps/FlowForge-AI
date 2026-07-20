@@ -65,8 +65,30 @@ python scripts/seed.py     # idempotent: demo org + admin@demo with administrato
 
 Model-agnostic by design (`backend/app/llm/provider.py` is the only module that knows providers exist). Switch via env:
 
-- `LLM_PROVIDER=ollama` (default) — local dev, free; set `OLLAMA_BASE_URL` if not on localhost.
-- `LLM_PROVIDER=openai` — final validation only; requires `OPENAI_API_KEY` (the factory refuses to start without it).
+- `LLM_PROVIDER=ollama` (default) — local dev, free; set `OLLAMA_BASE_URL` if not on localhost. Embeddings use `EMBEDDING_MODEL` (default `nomic-embed-text`, 768-dim): `ollama pull nomic-embed-text`.
+- `LLM_PROVIDER=openai` — final validation only; requires `OPENAI_API_KEY` (the factory refuses a missing or blank key).
+- `LLM_PROVIDER=fake` — deterministic offline embeddings for CI/tests only; refused when `APP_ENV=prod`.
+
+## Knowledge ingestion & retrieval (Phase 1)
+
+```bash
+# Upload a document (.pdf, .md, .txt; ≤20 MB) — returns 202 + document id
+curl -F "file=@policy.pdf" -F "title=VPN Access Policy" localhost:8000/api/documents
+
+# Ingestion status (pending → processing → ready | failed)
+curl localhost:8000/api/documents            # list + chunk counts
+curl localhost:8000/api/documents/<id>       # single document
+
+# Recover a failed/stuck document
+curl -X POST localhost:8000/api/documents/<id>/reingest
+
+# Dev-only retrieval check (404 in prod)
+curl -X POST localhost:8000/api/retrieve \
+  -H 'Content-Type: application/json' \
+  -d '{"query": "how do I reset my VPN access?", "k": 3}'
+```
+
+Ingestion runs on the `worker` compose service (arq + Redis). Files are stored under the `uploads` volume at `/data/uploads/{org_id}/{doc_id}`.
 
 ## Phase 0 definition-of-done walkthrough
 

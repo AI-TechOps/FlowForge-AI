@@ -19,7 +19,9 @@ class Settings(BaseSettings):
 
     database_url: str
     redis_url: str
-    llm_provider: Literal["ollama", "openai"] = "ollama"
+    # "fake" is a deterministic offline provider for CI/tests only (D15);
+    # the provider factory refuses it when app_env == "prod".
+    llm_provider: Literal["ollama", "openai", "fake"] = "ollama"
     ollama_base_url: str = "http://localhost:11434"
     openai_api_key: str | None = None
     embedding_model: str = "nomic-embed-text"

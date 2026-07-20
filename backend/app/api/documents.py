@@ -60,3 +60,24 @@ async def upload_document(
 
     await enqueue_ingest(document.id, org_id)
     return {"id": str(document.id), "status": DocumentStatus.pending.value}
+
+
+@router.post("/api/documents/{document_id}/reingest", status_code=202)
+async def reingest_document(
+    document_id: uuid.UUID,
+    session: AsyncSession = Depends(get_session),
+    org_id: uuid.UUID = Depends(current_org_id),
+) -> dict[str, str]:
+    """Re-run ingestion (recovers worker crashes / stuck `processing`).
+
+    Safe to call in any status: the pipeline deletes and rewrites chunks.
+    """
+    document = await session.get(Document, document_id)
+    if document is None or document.org_id != org_id:
+        raise HTTPException(status_code=404, detail="document not found")
+
+    document.status = DocumentStatus.pending
+    document.error_message = None
+    await session.commit()
+    await enqueue_ingest(document.id, org_id)
+    return {"id": str(document.id), "status": DocumentStatus.pending.value}

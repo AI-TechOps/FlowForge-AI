@@ -154,10 +154,23 @@ The four Phase 0 decisions were reviewed and confirmed by the code owners:
 
 ---
 
-## Open items (as of 2026-07-12)
+## D15 — Phase 1 review gate resolved (2026-07-20)
 
-- **Build Phase 0.** Everything upstream is approved: the Phase 0 spec, its 12-task plan (in the spec), spec 09 (Meridian Dynamics corpus — built in Phase 1), and spec 10 (Codex integration — `AGENTS.md` now exists). Next actions: land the approval docs via PR, then implement Phase 0 tasks 1–12 (task 11 is Codex's).
-- **Phase 1 spec review:** next review gate after Phase 0 is built.
+Phase 0 is built and merged (PR #6, adversarial findings addressed). The Phase 1 spec is **Approved** with four decisions confirmed by the code owners:
+
+1. **Queue library: arq** — async-native Redis queue; fits the asyncio stack (FastAPI, asyncpg, async SQLAlchemy) without thread bridging. RQ (sync) and Celery (heavyweight) rejected.
+2. **PDF extraction: pypdf** — BSD-licensed and sufficient for the clean text-layer fixture PDFs; PyMuPDF rejected on AGPL licensing.
+3. **CI embeddings: deterministic fake provider** — `LLM_PROVIDER=fake` yields hash-based vectors at the configured dimension so the ingestion/retrieval gates run in CI without Ollama; refused when `APP_ENV=prod`. Ollama stays the dev default; this never ships as a prod path.
+4. **Embedding dimension: 768** (`EMBEDDING_DIM` config constant, nomic-embed-text); the chunks migration uses it.
+
+The 12-task plan lives in `specs/02-phase1-rag.md`; tasks 9–10 are Codex's (fixtures per spec 09, gate tests for G1.1–G1.4).
+
+---
+
+## Open items (as of 2026-07-20)
+
+- **Build Phase 1** on `feat/phase1-rag`: tasks 1–8 and 11 (Claude), 9–10 (Codex), G1.5 label review (code owners).
+- **Phase 2 spec review:** next review gate after Phase 1 is built.
 
 ---
 

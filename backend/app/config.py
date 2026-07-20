@@ -3,6 +3,11 @@ from typing import Literal
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+# Embedding dimension is a build-time constant, not an env var: the pgvector
+# column type in the chunks migration is fixed at this width. Changing model
+# families means a new migration + re-embed (see Phase 1 spec, Risks).
+EMBEDDING_DIM = 768
+
 
 class Settings(BaseSettings):
     """Application settings, read from environment variables (or a local .env).

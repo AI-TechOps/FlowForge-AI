@@ -33,7 +33,5 @@ async def current_org_id(
     )
     org_id = result.scalar_one_or_none()
     if org_id is None:
-        raise HTTPException(
-            status_code=409, detail="no organization seeded; run scripts/seed.py"
-        )
+        raise HTTPException(status_code=409, detail="no organization seeded; run scripts/seed.py")
     return org_id

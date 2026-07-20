@@ -123,8 +123,6 @@ async def get_document(
     if document is None or document.org_id != org_id:
         raise HTTPException(status_code=404, detail="document not found")
     chunk_count = (
-        await session.execute(
-            select(func.count(Chunk.id)).where(Chunk.document_id == document.id)
-        )
+        await session.execute(select(func.count(Chunk.id)).where(Chunk.document_id == document.id))
     ).scalar_one()
     return _document_payload(document, chunk_count)

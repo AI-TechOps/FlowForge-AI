@@ -36,9 +36,7 @@ def upgrade() -> None:
         sa.Column("version", sa.String(50), nullable=False, server_default="1"),
         sa.Column(
             "status",
-            sa.Enum(
-                "pending", "processing", "ready", "failed", name="document_status"
-            ),
+            sa.Enum("pending", "processing", "ready", "failed", name="document_status"),
             nullable=False,
             server_default="pending",
         ),

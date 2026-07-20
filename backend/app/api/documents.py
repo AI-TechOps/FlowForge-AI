@@ -1,18 +1,32 @@
 import uuid
 from pathlib import Path
+from typing import Any
 
 from fastapi import APIRouter, Depends, Form, HTTPException, UploadFile
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import current_org_id
 from app.config import get_settings
 from app.db import get_session
 from app.ingestion.queue import enqueue_ingest
-from app.models import Document, DocumentStatus
+from app.models import Chunk, Document, DocumentStatus
 
 router = APIRouter()
 
 ALLOWED_EXTENSIONS = {".pdf", ".md", ".txt"}
+
+
+def _document_payload(document: Document, chunk_count: int) -> dict[str, Any]:
+    return {
+        "id": str(document.id),
+        "title": document.title,
+        "version": document.version,
+        "status": document.status.value,
+        "chunk_count": chunk_count,
+        "error_message": document.error_message,
+        "created_at": document.created_at.isoformat(),
+    }
 
 
 @router.post("/api/documents", status_code=202)
@@ -81,3 +95,36 @@ async def reingest_document(
     await session.commit()
     await enqueue_ingest(document.id, org_id)
     return {"id": str(document.id), "status": DocumentStatus.pending.value}
+
+
+@router.get("/api/documents")
+async def list_documents(
+    session: AsyncSession = Depends(get_session),
+    org_id: uuid.UUID = Depends(current_org_id),
+) -> list[dict[str, Any]]:
+    statement = (
+        select(Document, func.count(Chunk.id))
+        .outerjoin(Chunk, Chunk.document_id == Document.id)
+        .where(Document.org_id == org_id)
+        .group_by(Document.id)
+        .order_by(Document.created_at.desc())
+    )
+    rows = (await session.execute(statement)).all()
+    return [_document_payload(document, count) for document, count in rows]
+
+
+@router.get("/api/documents/{document_id}")
+async def get_document(
+    document_id: uuid.UUID,
+    session: AsyncSession = Depends(get_session),
+    org_id: uuid.UUID = Depends(current_org_id),
+) -> dict[str, Any]:
+    document = await session.get(Document, document_id)
+    if document is None or document.org_id != org_id:
+        raise HTTPException(status_code=404, detail="document not found")
+    chunk_count = (
+        await session.execute(
+            select(func.count(Chunk.id)).where(Chunk.document_id == document.id)
+        )
+    ).scalar_one()
+    return _document_payload(document, chunk_count)

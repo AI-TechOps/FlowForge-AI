@@ -85,7 +85,9 @@ class FakeProvider(LLMProvider):
     """
 
     def __init__(self, embedding_model: str) -> None:
-        self.embedding_model = embedding_model
+        # Prefixed so chunks embedded by the fake provider can never be
+        # mistaken for real model vectors (embedding_model is stored per chunk).
+        self.embedding_model = f"fake:{embedding_model}"
 
     async def complete(self, prompt: str) -> str:
         raise NotImplementedError("The fake provider does not complete prompts.")

@@ -12,7 +12,6 @@ from typing import Any
 
 from sqlalchemy import delete
 
-from app.config import get_settings
 from app.db import async_session_factory
 from app.ingestion.chunk import chunk_blocks
 from app.ingestion.extract import extract
@@ -51,7 +50,9 @@ async def ingest_document(ctx: dict[str, Any], document_id: str, org_id: str) ->
                 batch = drafts[start : start + EMBED_BATCH_SIZE]
                 embeddings.extend(await provider.embed([d.text for d in batch]))
 
-            model_name = get_settings().embedding_model
+            # The provider knows what actually embedded (the fake provider
+            # prefixes itself); config alone would mislabel fake vectors.
+            model_name = provider.embedding_model
             await session.execute(delete(Chunk).where(Chunk.document_id == doc_uuid))
             session.add_all(
                 Chunk(

@@ -26,6 +26,10 @@ class Settings(BaseSettings):
     openai_api_key: str | None = None
     embedding_model: str = "nomic-embed-text"
     app_env: Literal["dev", "prod"] = "dev"
+    upload_dir: str = "/data/uploads"
+    max_upload_mb: int = 20
+    chunk_target_tokens: int = 500
+    chunk_overlap_tokens: int = 50
 
 
 @lru_cache

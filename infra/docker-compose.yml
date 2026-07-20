@@ -38,6 +38,9 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       EMBEDDING_MODEL: ${EMBEDDING_MODEL:-nomic-embed-text}
       APP_ENV: ${APP_ENV:-dev}
+      UPLOAD_DIR: /data/uploads
+    volumes:
+      - uploads:/data/uploads
     ports:
       - "8000:8000"
     depends_on:
@@ -57,3 +60,4 @@ services:
 
 volumes:
   db_data:
+  uploads:

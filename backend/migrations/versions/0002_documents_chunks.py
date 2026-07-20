@@ -22,6 +22,9 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
+    # Self-sufficient on any database (scratch DBs, CI service containers):
+    # infra/init-db.sql only covers the compose-created main database.
+    op.execute("CREATE EXTENSION IF NOT EXISTS vector")
     op.create_table(
         "documents",
         sa.Column("id", UUID(as_uuid=True), primary_key=True),

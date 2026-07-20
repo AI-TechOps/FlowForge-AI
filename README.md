@@ -44,10 +44,14 @@ Trivial fixes skip the spec. Real features do not.
 
 ```bash
 cp .env.example .env                          # defaults work for docker compose
-docker compose -f infra/docker-compose.yml up --build
+docker compose --env-file .env -f infra/docker-compose.yml up --build
 # backend:  http://localhost:8000/api/health  -> {"status":"ok","db":"ok","redis":"ok"}
 # frontend: http://localhost:5173             -> green backend-healthy indicator
 ```
+
+> `--env-file .env` matters: with `-f infra/docker-compose.yml` alone, compose
+> looks for `.env` next to the compose file (`infra/`), not the repo root, and
+> your `LLM_PROVIDER`/`OLLAMA_BASE_URL` settings would silently not apply.
 
 Apply migrations (one-time, with the stack up — alembic ships in the backend image):
 

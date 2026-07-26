@@ -57,6 +57,9 @@ jobs:
       # Required by app settings at import time (seed-script gate); nothing
       # in the test job actually connects to Redis.
       REDIS_URL: redis://localhost:6379/0
+      # Phase 1 gates embed without Ollama via the deterministic fake
+      # provider (D15). Refused when APP_ENV=prod; CI runs as dev.
+      LLM_PROVIDER: fake
     steps:
       - uses: actions/checkout@v4
 
@@ -76,6 +79,71 @@ jobs:
 
       - name: Run tests
         run: pytest --tb=short
+
+  integration:
+    name: phase1-gates
+    runs-on: ubuntu-latest
+    # G1.1–G1.4 are HTTP integration gates: they need the full stack
+    # (db+pgvector, redis, backend, worker), and G1.4 kills/restarts the real
+    # worker container. The fast `test` job only has Postgres, so the live
+    # gates skip there — this job actually exercises ingestion and retrieval.
+    env:
+      # Compose re-interpolates ${LLM_PROVIDER}/${APP_ENV} on every invocation,
+      # including the worker restart the killed-worker test drives, so they must
+      # live in the process env (D15: fake embeddings, refused in prod).
+      LLM_PROVIDER: fake
+      APP_ENV: dev
+      COMPOSE_FILE: infra/docker-compose.yml
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/pyproject.toml
+
+      # tests/phase1 talks to the stack over HTTP and seeds orgs via asyncpg;
+      # it never imports app/, so the runner only needs pytest + asyncpg.
+      - name: Install test deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e "./backend[dev]"
+
+      - name: Build and start the stack
+        run: docker compose -f "$COMPOSE_FILE" up -d --build db redis backend worker
+
+      - name: Wait for backend health
+        run: |
+          for _ in $(seq 1 60); do
+            if curl -sf localhost:8000/api/health | grep -q '"status":"ok"'; then
+              echo "backend healthy"; exit 0
+            fi
+            sleep 3
+          done
+          echo "backend did not become healthy in time"
+          docker compose -f "$COMPOSE_FILE" logs --tail=120 backend worker
+          exit 1
+
+      - name: Run migrations
+        run: docker compose -f "$COMPOSE_FILE" exec -T backend alembic upgrade head
+
+      - name: Run Phase 1 gates (G1.1–G1.4)
+        env:
+          PHASE1_REQUIRE_LIVE: "1"
+          PHASE1_MANAGE_WORKER: "1"
+          PHASE1_DATABASE_URL: postgresql+asyncpg://flowforge:flowforge@localhost:5432/flowforge
+          PHASE1_COMPOSE_FILE: ${{ github.workspace }}/infra/docker-compose.yml
+          PHASE1_BASE_URL: http://localhost:8000
+        run: pytest tests/phase1 -v --tb=short
+
+      - name: Stack logs on failure
+        if: failure()
+        run: docker compose -f "$COMPOSE_FILE" logs --tail=200
+
+      - name: Tear down
+        if: always()
+        run: docker compose -f "$COMPOSE_FILE" down -v
 
   secret-scan:
     name: secret-scan

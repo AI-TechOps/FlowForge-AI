@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import os
-from pathlib import Path
 import shutil
 import subprocess
 import sys
+from pathlib import Path
 from urllib.parse import urlsplit, urlunsplit
 
 import pytest
@@ -59,7 +59,7 @@ def migrated_scratch_database(repository_root: Path) -> str:
     return database_url
 
 
-def test_initial_migration_creates_only_the_phase0_domain_tables(
+def test_migrated_schema_contains_only_the_expected_domain_tables(
     migrated_scratch_database: str,
 ) -> None:
     tables = _query(
@@ -73,7 +73,9 @@ def test_initial_migration_creates_only_the_phase0_domain_tables(
         ORDER BY table_name;
         """,
     )
-    assert tables == ["organizations", "user_roles", "users"]
+    # Head is 0002: Phase 1 (spec 02, task 1) adds documents + chunks alongside
+    # the Phase 0 tenant tables. The gate still guards against stray tables.
+    assert tables == ["chunks", "documents", "organizations", "user_roles", "users"]
 
 
 def test_users_schema_has_tenant_link_and_never_stores_passwords(

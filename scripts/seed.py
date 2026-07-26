@@ -12,10 +12,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "backend"))
 
-from sqlalchemy import select  # noqa: E402
-
-from app.db import async_session_factory, engine  # noqa: E402
-from app.models import Organization, Role, User, UserRole  # noqa: E402
+from app.db import async_session_factory, engine
+from app.models import Organization, Role, User, UserRole
+from sqlalchemy import select
 
 DEMO_ORG = "Meridian Dynamics"
 ADMIN_EMAIL = "admin@demo"

@@ -1,0 +1,35 @@
+{
+  "review_status": "draft_pending_code_owner_review",
+  "checks": [
+    {
+      "query": "is a rooted or jailbroken device allowed to connect to the VPN?",
+      "expected_doc_ids": [
+        "MD-IT-001"
+      ]
+    },
+    {
+      "query": "Conflicting signals are resolved using observable impact, urgency, workaround, and security evidence, and the rationale is recorded.",
+      "expected_doc_ids": [
+        "MD-IT-002"
+      ]
+    },
+    {
+      "query": "new phone cannot approve MFA authenticator codes do not work",
+      "expected_doc_ids": [
+        "MD-IT-004"
+      ]
+    },
+    {
+      "query": "Business Applications checks the catalog and license inventory",
+      "expected_doc_ids": [
+        "MD-IT-006"
+      ]
+    },
+    {
+      "query": "planned monitor peripheral or lifecycle request",
+      "expected_doc_ids": [
+        "MD-IT-005"
+      ]
+    }
+  ]
+}

@@ -1,15 +1,16 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 import re
 import shutil
 import subprocess
+from pathlib import Path
 
 import pytest
 
-
-EXPECTED_SERVICES = {"backend", "db", "frontend", "redis"}
+# Phase 1 (spec 02, task 4) adds the arq `worker` as its own compose service on
+# the backend image; the Phase 0 topology of four services is now five.
+EXPECTED_SERVICES = {"backend", "db", "frontend", "redis", "worker"}
 
 
 def _compose_config(compose_path: Path) -> dict[str, object]:
@@ -37,7 +38,7 @@ def _published_targets(service: dict[str, object]) -> set[int]:
     return targets
 
 
-def test_compose_defines_the_locked_four_service_topology(
+def test_compose_defines_the_locked_service_topology(
     repository_root: Path,
 ) -> None:
     compose_path = repository_root / "infra" / "docker-compose.yml"
@@ -51,10 +52,29 @@ def test_compose_defines_the_locked_four_service_topology(
     redis = services["redis"]
     backend = services["backend"]
     frontend = services["frontend"]
+    worker = services["worker"]
     assert isinstance(db, dict)
     assert isinstance(redis, dict)
     assert isinstance(backend, dict)
     assert isinstance(frontend, dict)
+    assert isinstance(worker, dict)
+
+    # The worker reuses the backend image with the arq command and waits on the
+    # same healthy dependencies (spec 02, task 4).
+    assert worker.get("build"), "worker service must build backend/Dockerfile"
+    worker_command = worker.get("command")
+    rendered_command = (
+        worker_command
+        if isinstance(worker_command, str)
+        else " ".join(worker_command or [])
+    )
+    assert "arq" in rendered_command, "worker service must run the arq worker"
+    worker_dependencies = worker.get("depends_on")
+    assert isinstance(worker_dependencies, dict)
+    for service_name in ("db", "redis"):
+        dependency = worker_dependencies.get(service_name)
+        assert isinstance(dependency, dict)
+        assert dependency.get("condition") == "service_healthy"
 
     assert db.get("image") == "pgvector/pgvector:pg16"
     assert str(redis.get("image", "")).startswith("redis:7")

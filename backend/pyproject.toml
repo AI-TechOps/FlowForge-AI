@@ -11,6 +11,11 @@ dependencies = [
     "asyncpg>=0.30",
     "alembic>=1.14",
     "redis>=5.2",
+    "pgvector>=0.3",
+    "httpx>=0.28",
+    "arq>=0.26",
+    "python-multipart>=0.0.18",
+    "pypdf>=5.1",
 ]
 
 [project.optional-dependencies]
@@ -34,6 +39,10 @@ target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "ASYNC"]
+
+[tool.ruff.lint.flake8-bugbear]
+# FastAPI's dependency-injection idiom uses these calls as defaults.
+extend-immutable-calls = ["fastapi.Depends", "fastapi.Form", "fastapi.Header", "fastapi.Query"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

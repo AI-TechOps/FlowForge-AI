@@ -1,0 +1,46 @@
+{
+  "schema_version": "1.0",
+  "company": "Meridian Dynamics, Inc.",
+  "review_status": "draft_pending_code_owner_review",
+  "categories": [
+    "network_access",
+    "account_access",
+    "hardware",
+    "software_licensing",
+    "email_collaboration",
+    "security_incident",
+    "general_inquiry"
+  ],
+  "urgencies": [
+    "low",
+    "medium",
+    "high",
+    "critical"
+  ],
+  "priorities": [
+    "P1",
+    "P2",
+    "P3",
+    "P4"
+  ],
+  "recommended_teams": [
+    "Service Desk",
+    "IT Infrastructure",
+    "IT Security",
+    "Workplace IT",
+    "Business Applications"
+  ],
+  "team_responsibilities": {
+    "Service Desk": "Tier-1 catch-all, general inquiries, and triage fallback.",
+    "IT Infrastructure": "Network, VPN, Wi-Fi, servers, and DNS.",
+    "IT Security": "Account access control, MFA, phishing, and security incidents.",
+    "Workplace IT": "Laptops, peripherals, printers, and meeting rooms.",
+    "Business Applications": "Email, collaboration tools, ERP, and SaaS licensing."
+  },
+  "priority_summary": {
+    "P1": "Critical impact requiring immediate response, including an outage affecting at least 10 users, a critical business service outage, or confirmed active compromise.",
+    "P2": "High impact requiring rapid response, including 2–9 blocked users, a single user blocked from a time-critical business event, or a suspected security incident without confirmed compromise.",
+    "P3": "Medium impact for a single user or limited degradation where work is impaired but a workaround may exist.",
+    "P4": "Low impact for planned requests, routine access or license work, questions, and issues with an effective workaround."
+  }
+}

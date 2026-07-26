@@ -1,0 +1,565 @@
+%PDF-1.4
+%‚„œ”
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Count 2 /Kids [5 0 R 7 0 R] >>
+endobj
+3 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+4 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>
+endobj
+5 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents 6 0 R >>
+endobj
+6 0 obj
+<< /Length 4667 >>
+stream
+BT
+/F2 11 Tf
+1 0 0 1 54 738 Tm
+(Doc Id: MD-IT-002) Tj
+ET
+BT
+/F2 11 Tf
+1 0 0 1 54 725 Tm
+(Title: Incident Priority & Escalation Guidelines) Tj
+ET
+BT
+/F2 11 Tf
+1 0 0 1 54 712 Tm
+(Version: "1.0") Tj
+ET
+BT
+/F2 11 Tf
+1 0 0 1 54 699 Tm
+(Effective Date: 2026-07-01) Tj
+ET
+BT
+/F2 11 Tf
+1 0 0 1 54 686 Tm
+(Owner Team: Service Desk) Tj
+ET
+BT
+/F2 11 Tf
+1 0 0 1 54 673 Tm
+(Applies To: All Meridian Dynamics IT support tickets and support teams) Tj
+ET
+BT
+/F2 11 Tf
+1 0 0 1 54 660 Tm
+(Review Cadence: Semiannual) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 647 Tm
+() Tj
+ET
+BT
+/F2 11 Tf
+1 0 0 1 54 634 Tm
+(MD-IT-002 - Incident Priority & Escalation Guidelines) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 621 Tm
+() Tj
+ET
+BT
+/F2 11 Tf
+1 0 0 1 54 608 Tm
+(1. Purpose) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 595 Tm
+() Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 582 Tm
+(This guideline defines a consistent P1ñP4 priority from business impact and) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 569 Tm
+(urgency for every Meridian Dynamics IT ticket. It prevents priority from being) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 556 Tm
+(set by capitalization, job title, or an unsupported statement that an issue is) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 543 Tm
+(ìurgent.î The guideline also names response targets, owning-team handoffs, and) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 530 Tm
+(escalation thresholds. It applies after the ticket category is understood; the) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 517 Tm
+(priority expresses when support must act, not which team possesses the relevant) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 504 Tm
+(expertise. When evidence is incomplete, Service Desk records what is known,) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 491 Tm
+(chooses the less severe supported priority, and immediately asks for the missing) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 478 Tm
+(impact details.) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 465 Tm
+() Tj
+ET
+BT
+/F2 11 Tf
+1 0 0 1 54 452 Tm
+(2. Scope) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 439 Tm
+() Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 426 Tm
+(The matrix applies to incidents and requests involving network access, accounts,) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 413 Tm
+(hardware, software licensing, email and collaboration, security incidents, and) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 400 Tm
+(general inquiries. It applies during business hours and after hours; response) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 387 Tm
+(targets are elapsed time for P1 and P2 and business time for P3 and P4. Safety,) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 374 Tm
+(confirmed compromise, or active data exposure may require emergency procedures) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 361 Tm
+(beyond this IT matrix. Planned maintenance that follows an approved change is) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 348 Tm
+(not an incident unless service exceeds its communicated window or unexpected) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 335 Tm
+(impact occurs. Human-resources, legal, finance, and facilities matters are) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 322 Tm
+(outside this taxonomy unless an IT service or security control is directly) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 309 Tm
+(affected.) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 296 Tm
+() Tj
+ET
+BT
+/F2 11 Tf
+1 0 0 1 54 283 Tm
+(3. Definitions) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 270 Tm
+() Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 257 Tm
+(Impact is the breadth and business consequence of the issue: one user, 2ñ9) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 244 Tm
+(users, 10 or more users, an entire location, or a critical service. Urgency) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 231 Tm
+(is how quickly harm grows if support waits. critical means active severe harm,) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 218 Tm
+(confirmed compromise, or no service for a critical operation. high means work) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 205 Tm
+(is blocked or a confirmed near-term business event is at risk. medium means) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 192 Tm
+(work is degraded but harm is contained or a workaround exists. low means a) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 179 Tm
+(planned request, question, or issue with no current business interruption.) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 166 Tm
+(Priority is the response order: P1 is highest and P4 is lowest. Initial) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 153 Tm
+(response means a qualified analyst acknowledges, validates impact, and begins) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 140 Tm
+(or coordinates action; it does not promise final resolution.) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 127 Tm
+() Tj
+ET
+BT
+/F2 11 Tf
+1 0 0 1 54 114 Tm
+(4. Policy / Procedure) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 101 Tm
+() Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 88 Tm
+(Assign P1 when an outage affects 10 or more users and stops a critical business) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 75 Tm
+(operation with no workaround; when a critical business service is unavailable;) Tj
+ET
+BT
+/F1 8 Tf
+1 0 0 1 54 30 Tm
+(Meridian Dynamics | Page 1 of 2) Tj
+ET
+endstream
+endobj
+7 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents 8 0 R >>
+endobj
+8 0 obj
+<< /Length 4667 >>
+stream
+BT
+/F1 9 Tf
+1 0 0 1 54 738 Tm
+(or when active compromise, active data exposure, or dangerous hardware is) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 725 Tm
+(confirmed. P1 requires immediate paging and continuous coordination.) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 712 Tm
+() Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 699 Tm
+(Assign P2 when 2ñ9 users are blocked with no reasonable workaround; one user is) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 686 Tm
+(blocked from a confirmed time-critical customer or operational event; or a) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 673 Tm
+(security incident is suspected but active compromise is not yet confirmed. P2) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 660 Tm
+(requires an initial response within thirty minutes.) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 647 Tm
+() Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 634 Tm
+(Assign P3 when one user is blocked without an immediate deadline, a limited) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 621 Tm
+(group is degraded with a workable alternative, or a standard repair is needed.) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 608 Tm
+(P3 requires an initial response within four business hours.) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 595 Tm
+() Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 582 Tm
+(Assign P4 to planned access, hardware, software, and license requests; routine) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 569 Tm
+(questions; cosmetic defects; and problems with an effective workaround and no) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 556 Tm
+(near-term impact. P4 requires an initial response within one business day.) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 543 Tm
+(Analysts record affected users, service, workaround, deadline, and evidence.) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 530 Tm
+(Priority is reassessed whenever any of these facts changes.) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 517 Tm
+() Tj
+ET
+BT
+/F2 11 Tf
+1 0 0 1 54 504 Tm
+(5. Priority & escalation) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 491 Tm
+() Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 478 Tm
+(Service Desk owns initial triage and the priority record. IT Infrastructure owns) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 465 Tm
+(network, VPN, Wi-Fi, server, and DNS incidents. IT Security owns account-control,) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 452 Tm
+(MFA, phishing, and security incidents. Workplace IT owns laptops, peripherals,) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 439 Tm
+(printers, and meeting-room hardware. Business Applications owns email,) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 426 Tm
+(collaboration, ERP, SaaS, and licensing. Service Desk remains the general_inquiry) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 413 Tm
+(fallback when evidence does not support a specialist category.) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 400 Tm
+() Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 387 Tm
+(P1 is paged immediately to the owning team and incident lead, with updates at) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 374 Tm
+(least every thirty minutes. P2 is accepted by the owning team within thirty) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 361 Tm
+(minutes and escalated to its lead if unacknowledged after fifteen minutes. P3) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 348 Tm
+(and P4 follow queue targets but escalate when impact increases or the response) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 335 Tm
+(target is missed. A requesterís executive title never changes priority by) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 322 Tm
+(itself. Conflicting signals are resolved using observable impact, urgency,) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 309 Tm
+(workaround, and security evidence, and the rationale is recorded.) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 296 Tm
+() Tj
+ET
+BT
+/F2 11 Tf
+1 0 0 1 54 283 Tm
+(6. Related documents) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 270 Tm
+() Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 257 Tm
+(MD-IT-001 applies the matrix to MeridianConnect VPN. MD-IT-003 and MD-IT-004) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 244 Tm
+(apply it to account and MFA recovery. MD-IT-005 applies it to device and room) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 231 Tm
+(hardware. MD-IT-006 and MD-IT-007 apply it to licensing and collaboration.) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 218 Tm
+(MD-IT-008 defines security reporting and makes confirmed compromise a P1.) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 205 Tm
+(MD-IT-009 and MD-IT-010 apply it to workforce transitions and remote work.) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 192 Tm
+() Tj
+ET
+BT
+/F2 11 Tf
+1 0 0 1 54 179 Tm
+(7. Revision history) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 166 Tm
+() Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 153 Tm
+(Version 1.0 became effective on 2026-07-01. It establishes the 10-user P1) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 140 Tm
+(threshold, P2 time-critical single-user rule, response targets, closed team) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 127 Tm
+(ownership, evidence requirements, and the rule that observable impact overrides) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 114 Tm
+(unsupported urgency language or requester seniority.) Tj
+ET
+BT
+/F1 8 Tf
+1 0 0 1 54 30 Tm
+(Meridian Dynamics | Page 2 of 2) Tj
+ET
+endstream
+endobj
+9 0 obj
+<< /Title (Incident Priority & Escalation Guidelines) /Author (Meridian Dynamics, Inc.) /Subject (Fictional enterprise IT policy fixture) >>
+endobj
+xref
+0 10
+0000000000 65535 f 
+0000000015 00000 n 
+0000000064 00000 n 
+0000000127 00000 n 
+0000000197 00000 n 
+0000000272 00000 n 
+0000000408 00000 n 
+0000005127 00000 n 
+0000005263 00000 n 
+0000009982 00000 n 
+trailer
+<< /Size 10 /Root 1 0 R /Info 9 0 R >>
+startxref
+10138
+%%EOF

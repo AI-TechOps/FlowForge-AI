@@ -3,6 +3,11 @@ from typing import Literal
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+# Embedding dimension is a build-time constant, not an env var: the pgvector
+# column type in the chunks migration is fixed at this width. Changing model
+# families means a new migration + re-embed (see Phase 1 spec, Risks).
+EMBEDDING_DIM = 768
+
 
 class Settings(BaseSettings):
     """Application settings, read from environment variables (or a local .env).
@@ -14,11 +19,17 @@ class Settings(BaseSettings):
 
     database_url: str
     redis_url: str
-    llm_provider: Literal["ollama", "openai"] = "ollama"
+    # "fake" is a deterministic offline provider for CI/tests only (D15);
+    # the provider factory refuses it when app_env == "prod".
+    llm_provider: Literal["ollama", "openai", "fake"] = "ollama"
     ollama_base_url: str = "http://localhost:11434"
     openai_api_key: str | None = None
     embedding_model: str = "nomic-embed-text"
     app_env: Literal["dev", "prod"] = "dev"
+    upload_dir: str = "/data/uploads"
+    max_upload_mb: int = 20
+    chunk_target_tokens: int = 500
+    chunk_overlap_tokens: int = 50
 
 
 @lru_cache

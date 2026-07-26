@@ -7,7 +7,7 @@ Phase 2 (triage agent); embeddings are implemented here since Phase 1.
 
 import hashlib
 import math
-import struct
+import re
 from abc import ABC, abstractmethod
 
 import httpx
@@ -79,10 +79,17 @@ class OpenAIProvider(LLMProvider):
 class FakeProvider(LLMProvider):
     """Deterministic offline provider for CI and tests (Phase 1 decision, D15).
 
-    Vectors are derived from a SHA-256 stream over the text, L2-normalized so
-    cosine similarity behaves sensibly. Identical text always embeds
-    identically. Refused in prod by the factory.
+    Embeddings are a deterministic *feature hashing* of the text's tokens (the
+    hashing-vectorizer trick): each token is hashed to a signed bucket in an
+    EMBEDDING_DIM vector, which is then L2-normalized. Texts that share
+    vocabulary land near each other under cosine similarity, so the retrieval
+    sanity gates (G1.1/G1.2) exercise real ranking behaviour offline — a plain
+    whole-text hash would be deterministic but semantically blind. Identical
+    text always embeds identically. Refused in prod by the factory.
     """
+
+    _TOKEN = re.compile(r"[a-z0-9]+")
+    _MIN_TOKEN_LEN = 3
 
     def __init__(self, embedding_model: str) -> None:
         # Prefixed so chunks embedded by the fake provider can never be
@@ -95,19 +102,17 @@ class FakeProvider(LLMProvider):
     async def embed(self, texts: list[str]) -> list[list[float]]:
         return [self._embed_one(text) for text in texts]
 
-    @staticmethod
-    def _embed_one(text: str) -> list[float]:
-        values: list[float] = []
-        counter = 0
-        seed = text.encode("utf-8")
-        while len(values) < EMBEDDING_DIM:
-            digest = hashlib.sha256(seed + counter.to_bytes(4, "big")).digest()
-            for offset in range(0, len(digest) - 3, 4):
-                (raw,) = struct.unpack_from(">i", digest, offset)
-                values.append(raw / 2**31)
-                if len(values) == EMBEDDING_DIM:
-                    break
-            counter += 1
+    @classmethod
+    def _embed_one(cls, text: str) -> list[float]:
+        values = [0.0] * EMBEDDING_DIM
+        tokens = [t for t in cls._TOKEN.findall(text.lower()) if len(t) >= cls._MIN_TOKEN_LEN]
+        # No usable tokens (punctuation/whitespace only): fall back to the whole
+        # string so the vector is still deterministic and non-zero.
+        for token in tokens or [text.strip() or " "]:
+            digest = hashlib.sha256(token.encode("utf-8")).digest()
+            index = int.from_bytes(digest[:4], "big") % EMBEDDING_DIM
+            sign = 1.0 if digest[4] & 1 else -1.0
+            values[index] += sign
         norm = math.sqrt(sum(v * v for v in values)) or 1.0
         return [v / norm for v in values]
 

@@ -11,7 +11,7 @@ import pytest
 def test_live_backend_reports_database_and_redis_healthy() -> None:
     url = os.environ.get("PHASE0_HEALTH_URL", "http://localhost:8000/api/health")
     try:
-        with urlopen(url, timeout=2) as response:  # noqa: S310 - local gate endpoint
+        with urlopen(url, timeout=2) as response:
             status_code = response.status
             body = json.load(response)
     except HTTPError as exc:

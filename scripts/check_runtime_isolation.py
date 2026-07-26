@@ -5,10 +5,9 @@ from __future__ import annotations
 
 import argparse
 import ast
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Sequence
-
 
 FORBIDDEN_IMPORT_ROOTS = frozenset({"fixtures", "scripts", "tests"})
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -107,17 +106,17 @@ class _ImportVisitor(ast.NodeVisitor):
             )
         )
 
-    def visit_Import(self, node: ast.Import) -> None:  # noqa: N802
+    def visit_Import(self, node: ast.Import) -> None:
         for alias in node.names:
             self._record(node, alias.name)
         self.generic_visit(node)
 
-    def visit_ImportFrom(self, node: ast.ImportFrom) -> None:  # noqa: N802
+    def visit_ImportFrom(self, node: ast.ImportFrom) -> None:
         if node.module:
             self._record(node, node.module)
         self.generic_visit(node)
 
-    def visit_Call(self, node: ast.Call) -> None:  # noqa: N802
+    def visit_Call(self, node: ast.Call) -> None:
         imported_name = _literal_import_name(node, self.bindings)
         if imported_name is not None:
             self._record(node, imported_name)

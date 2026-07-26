@@ -20,4 +20,5 @@ build/
 __pycache__/
 *.pyc
 .venv/
+.venv-host/
 venv/

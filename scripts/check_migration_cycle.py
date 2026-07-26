@@ -5,13 +5,12 @@ from __future__ import annotations
 
 import argparse
 import os
-from pathlib import Path
 import re
 import subprocess
 import sys
-from typing import Mapping, Sequence
+from collections.abc import Mapping, Sequence
+from pathlib import Path
 from urllib.parse import unquote, urlsplit
-
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_BACKEND_DIR = PROJECT_ROOT / "backend"

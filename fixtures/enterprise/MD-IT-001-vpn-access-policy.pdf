@@ -1,0 +1,540 @@
+%PDF-1.4
+%âãÏÓ
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Count 2 /Kids [5 0 R 7 0 R] >>
+endobj
+3 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+4 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>
+endobj
+5 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents 6 0 R >>
+endobj
+6 0 obj
+<< /Length 4647 >>
+stream
+BT
+/F2 11 Tf
+1 0 0 1 54 738 Tm
+(Doc Id: MD-IT-001) Tj
+ET
+BT
+/F2 11 Tf
+1 0 0 1 54 725 Tm
+(Title: VPN Access Policy) Tj
+ET
+BT
+/F2 11 Tf
+1 0 0 1 54 712 Tm
+(Version: "1.0") Tj
+ET
+BT
+/F2 11 Tf
+1 0 0 1 54 699 Tm
+(Effective Date: 2026-07-01) Tj
+ET
+BT
+/F2 11 Tf
+1 0 0 1 54 686 Tm
+(Owner Team: IT Infrastructure) Tj
+ET
+BT
+/F2 11 Tf
+1 0 0 1 54 673 Tm
+(Applies To: Meridian Dynamics employees and contractors using remote network access) Tj
+ET
+BT
+/F2 11 Tf
+1 0 0 1 54 660 Tm
+(Review Cadence: Annual) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 647 Tm
+() Tj
+ET
+BT
+/F2 11 Tf
+1 0 0 1 54 634 Tm
+(MD-IT-001 - VPN Access Policy) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 621 Tm
+() Tj
+ET
+BT
+/F2 11 Tf
+1 0 0 1 54 608 Tm
+(1. Purpose) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 595 Tm
+() Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 582 Tm
+(This policy governs remote access to Meridian Dynamics internal services through) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 569 Tm
+(the MeridianConnect VPN. It explains who may connect, which devices and) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 556 Tm
+(authentication methods are allowed, how to diagnose common reports such as “VPN) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 543 Tm
+(keeps disconnecting,” “VPN times out from home,” and “connected but cannot reach) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 530 Tm
+(the ERP,” and when to escalate. MeridianConnect protects company traffic over an) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 517 Tm
+(untrusted network; it does not repair an employee’s home internet service. The) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 504 Tm
+(intended result is reliable, auditable remote access without bypassing device,) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 491 Tm
+(identity, or network security controls.) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 478 Tm
+() Tj
+ET
+BT
+/F2 11 Tf
+1 0 0 1 54 465 Tm
+(2. Scope) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 452 Tm
+() Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 439 Tm
+(The policy applies to active employees and approved contractors who use a) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 426 Tm
+(managed Meridian device outside a company office. Access is limited to services) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 413 Tm
+(authorized for the user’s role. Personal computers, rooted or jailbroken) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 400 Tm
+(devices, shared household devices, and unmanaged virtual machines may not) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 387 Tm
+(connect. A basic password or account lockout follows MD-IT-003, and a lost MFA) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 374 Tm
+(device follows MD-IT-004. A home internet outage or weak home Wi-Fi is outside) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 361 Tm
+(Meridian infrastructure ownership, although Service Desk may help identify that) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 348 Tm
+(boundary under MD-IT-010. Suspicious certificate warnings, unexpected approval) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 335 Tm
+(prompts, or evidence of credential theft are security incidents under MD-IT-008.) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 322 Tm
+() Tj
+ET
+BT
+/F2 11 Tf
+1 0 0 1 54 309 Tm
+(3. Definitions) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 296 Tm
+() Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 283 Tm
+(MeridianConnect is the approved company VPN client and gateway. A managed) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 270 Tm
+(device is company-enrolled, encrypted, patched, and reporting healthy security) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 257 Tm
+(status. A tunnel is the protected network session created after sign-in and) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 244 Tm
+(MFA. Employees may describe tunnel trouble as “VPN drops,” “keeps) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 231 Tm
+(disconnecting,” “times out,” “stuck connecting,” or “connected but no access.”) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 218 Tm
+(A local network problem exists when ordinary internet sites are also slow or) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 205 Tm
+(unreachable before MeridianConnect starts. A service outage affects multiple) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 192 Tm
+(users or locations. A certificate warning says the remote identity cannot be) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 179 Tm
+(verified; users must not bypass it. Split access means public internet) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 166 Tm
+(traffic and approved company traffic follow their configured routes.) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 153 Tm
+() Tj
+ET
+BT
+/F2 11 Tf
+1 0 0 1 54 140 Tm
+(4. Policy / Procedure) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 127 Tm
+() Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 114 Tm
+(1. Connect from a managed device with current updates, disk encryption, and an) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 101 Tm
+(enrolled MFA method. Use only the installed MeridianConnect client and the) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 88 Tm
+(published gateway; browser extensions and third-party VPN clients are not) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 75 Tm
+(approved.) Tj
+ET
+BT
+/F1 8 Tf
+1 0 0 1 54 30 Tm
+(Meridian Dynamics | Page 1 of 2) Tj
+ET
+endstream
+endobj
+7 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents 8 0 R >>
+endobj
+8 0 obj
+<< /Length 4303 >>
+stream
+BT
+/F1 9 Tf
+1 0 0 1 54 738 Tm
+(2. Before troubleshooting, confirm ordinary internet access without opening) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 725 Tm
+(confidential services. On hotel or guest Wi-Fi, complete the legitimate) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 712 Tm
+(captive portal before starting MeridianConnect. Never accept a certificate) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 699 Tm
+(warning or disable endpoint protection.) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 686 Tm
+(3. If MeridianConnect times out or keeps disconnecting, record the timestamp,) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 673 Tm
+(network type, client error, whether ordinary internet remained available,) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 660 Tm
+(and whether another approved network works. Restart the client once. Do not) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 647 Tm
+(repeatedly approve MFA prompts.) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 634 Tm
+(4. If the tunnel connects but one application is unavailable, record the) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 621 Tm
+(application and error. IT Infrastructure checks routes and DNS; Business) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 608 Tm
+(Applications handles an application outage or missing license.) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 595 Tm
+(5. Service Desk may collect approved client diagnostics. IT Infrastructure may) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 582 Tm
+(reset a stale VPN session after verifying identity. Employees must not post) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 569 Tm
+(logs containing addresses or identifiers in public channels.) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 556 Tm
+() Tj
+ET
+BT
+/F2 11 Tf
+1 0 0 1 54 543 Tm
+(5. Priority & escalation) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 530 Tm
+() Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 517 Tm
+(IT Infrastructure owns network_access and MeridianConnect incidents. One) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 504 Tm
+(employee with intermittent VPN and a usable alternate network is medium urgency,) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 491 Tm
+(P3, with a four-business-hour initial response. One employee fully blocked) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 478 Tm
+(before a confirmed customer or operational deadline is high urgency, P2, with a) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 465 Tm
+(thirty-minute initial response. A MeridianConnect outage affecting 10 or more) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 452 Tm
+(users, two office locations, or a critical remote operation is critical urgency,) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 439 Tm
+(P1, with immediate response under MD-IT-002. A certificate warning, repeated) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 426 Tm
+(unexpected MFA prompts, or suspected credential disclosure changes the category) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 413 Tm
+(to security_incident and transfers ownership to IT Security immediately. A) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 400 Tm
+(personal internet-provider outage is routed to Service Desk for general guidance) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 387 Tm
+(and is not represented as a Meridian service failure.) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 374 Tm
+() Tj
+ET
+BT
+/F2 11 Tf
+1 0 0 1 54 361 Tm
+(6. Related documents) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 348 Tm
+() Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 335 Tm
+(MD-IT-002 defines the impact and urgency matrix for P1–P4 assignment. MD-IT-003) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 322 Tm
+(governs password reset and lockout when the VPN credential is rejected.) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 309 Tm
+(MD-IT-004 governs MFA enrollment and lost-authenticator recovery. MD-IT-008) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 296 Tm
+(governs suspicious prompts, certificate warnings, and credential disclosure.) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 283 Tm
+(MD-IT-010 defines supported remote networks, managed-device standards, and the) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 270 Tm
+(boundary around personal internet service.) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 257 Tm
+() Tj
+ET
+BT
+/F2 11 Tf
+1 0 0 1 54 244 Tm
+(7. Revision history) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 231 Tm
+() Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 218 Tm
+(Version 1.0 became effective on 2026-07-01. It establishes managed-device-only) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 205 Tm
+(access, approved diagnostics, the 10-user P1 threshold, clear ownership between) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 192 Tm
+(IT Infrastructure and Business Applications, and mandatory security escalation) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 179 Tm
+(for certificate or credential concerns.) Tj
+ET
+BT
+/F1 8 Tf
+1 0 0 1 54 30 Tm
+(Meridian Dynamics | Page 2 of 2) Tj
+ET
+endstream
+endobj
+9 0 obj
+<< /Title (VPN Access Policy) /Author (Meridian Dynamics, Inc.) /Subject (Fictional enterprise IT policy fixture) >>
+endobj
+xref
+0 10
+0000000000 65535 f 
+0000000015 00000 n 
+0000000064 00000 n 
+0000000127 00000 n 
+0000000197 00000 n 
+0000000272 00000 n 
+0000000408 00000 n 
+0000005107 00000 n 
+0000005243 00000 n 
+0000009598 00000 n 
+trailer
+<< /Size 10 /Root 1 0 R /Info 9 0 R >>
+startxref
+9730
+%%EOF

@@ -1,0 +1,621 @@
+{
+  "schema_version": "1.0",
+  "company": "Meridian Dynamics, Inc.",
+  "review_status": "draft_pending_code_owner_review",
+  "eval_tickets": [
+    {
+      "id": "EVAL-001",
+      "title": "MeridianConnect drops every few minutes",
+      "description": "From home, MeridianConnect disconnects about every five minutes. Ordinary websites still work and my phone hotspot keeps the VPN stable, so I can use that workaround for now.",
+      "requester_department": "Customer Success",
+      "affected_service": "MeridianConnect VPN",
+      "existing_priority": null,
+      "labels": {
+        "category": "network_access",
+        "urgency": "medium",
+        "recommended_team": "IT Infrastructure"
+      },
+      "grounding_references": [
+        {
+          "doc_id": "MD-IT-001",
+          "section": "5",
+          "supports": [
+            "category",
+            "urgency",
+            "recommended_team"
+          ]
+        }
+      ],
+      "difficulty": "straightforward",
+      "difficulty_note": "Direct VPN symptom with one affected user and an effective alternate network."
+    },
+    {
+      "id": "EVAL-002",
+      "title": "Remote access unavailable for dispatch team",
+      "description": "Eighteen remote dispatch employees cannot establish MeridianConnect sessions. Normal internet works, no alternate connection reaches the dispatch system, and the morning operation is stopped.",
+      "requester_department": "Operations",
+      "affected_service": "MeridianConnect VPN",
+      "existing_priority": "P2",
+      "labels": {
+        "category": "network_access",
+        "urgency": "critical",
+        "recommended_team": "IT Infrastructure"
+      },
+      "grounding_references": [
+        {
+          "doc_id": "MD-IT-001",
+          "section": "5",
+          "supports": [
+            "category",
+            "urgency",
+            "recommended_team"
+          ]
+        },
+        {
+          "doc_id": "MD-IT-002",
+          "section": "4",
+          "supports": [
+            "urgency"
+          ]
+        }
+      ],
+      "difficulty": "straightforward",
+      "difficulty_note": "A VPN outage affecting at least 10 users and stopping a critical operation meets the explicit P1/critical threshold."
+    },
+    {
+      "id": "EVAL-003",
+      "title": "Account locked after password attempts",
+      "description": "I tried my password five times and now the identity portal says my account is locked. I have no customer deadline today and can continue offline work.",
+      "requester_department": "Finance Operations",
+      "affected_service": "Meridian identity",
+      "existing_priority": null,
+      "labels": {
+        "category": "account_access",
+        "urgency": "medium",
+        "recommended_team": "IT Security"
+      },
+      "grounding_references": [
+        {
+          "doc_id": "MD-IT-003",
+          "section": "5",
+          "supports": [
+            "category",
+            "urgency",
+            "recommended_team"
+          ]
+        }
+      ],
+      "difficulty": "straightforward",
+      "difficulty_note": "The lockout count and absence of a deadline directly match routine account recovery."
+    },
+    {
+      "id": "EVAL-004",
+      "title": "Lost phone and cannot approve MFA",
+      "description": "My enrolled phone was lost during my commute. I have no recovery code and cannot approve MFA, so I cannot sign in to any company service.",
+      "requester_department": "Sales",
+      "affected_service": "Meridian identity MFA",
+      "existing_priority": null,
+      "labels": {
+        "category": "account_access",
+        "urgency": "high",
+        "recommended_team": "IT Security"
+      },
+      "grounding_references": [
+        {
+          "doc_id": "MD-IT-004",
+          "section": "5",
+          "supports": [
+            "category",
+            "urgency",
+            "recommended_team"
+          ]
+        }
+      ],
+      "difficulty": "straightforward",
+      "difficulty_note": "A lost factor with no recovery method is explicitly high-urgency account access owned by IT Security."
+    },
+    {
+      "id": "EVAL-005",
+      "title": "Cracked laptop screen",
+      "description": "I dropped my assigned laptop and the screen is cracked. It is safe and still works through my dock and external monitor, so I have a usable workaround.",
+      "requester_department": "Marketing",
+      "affected_service": "Managed laptop",
+      "existing_priority": null,
+      "labels": {
+        "category": "hardware",
+        "urgency": "medium",
+        "recommended_team": "Workplace IT"
+      },
+      "grounding_references": [
+        {
+          "doc_id": "MD-IT-005",
+          "section": "5",
+          "supports": [
+            "category",
+            "urgency",
+            "recommended_team"
+          ]
+        }
+      ],
+      "difficulty": "straightforward",
+      "difficulty_note": "Physical laptop damage with a safe alternate display is a single-user degraded hardware case."
+    },
+    {
+      "id": "EVAL-006",
+      "title": "Laptop will not power on before customer workshop",
+      "description": "My company laptop will not power on after charging and I have no other managed device. I lead a confirmed customer workshop in ninety minutes.",
+      "requester_department": "Professional Services",
+      "affected_service": "Managed laptop",
+      "existing_priority": null,
+      "labels": {
+        "category": "hardware",
+        "urgency": "high",
+        "recommended_team": "Workplace IT"
+      },
+      "grounding_references": [
+        {
+          "doc_id": "MD-IT-005",
+          "section": "5",
+          "supports": [
+            "category",
+            "urgency",
+            "recommended_team"
+          ]
+        }
+      ],
+      "difficulty": "straightforward",
+      "difficulty_note": "One unusable managed device with no alternate before a confirmed customer event meets the high-urgency hardware rule."
+    },
+    {
+      "id": "EVAL-007",
+      "title": "Need one analytics SaaS seat next month",
+      "description": "Please assign one catalog analytics license for a new project that starts next month. My manager approved the business need and there is no current work interruption.",
+      "requester_department": "Product",
+      "affected_service": "Analytics SaaS",
+      "existing_priority": null,
+      "labels": {
+        "category": "software_licensing",
+        "urgency": "low",
+        "recommended_team": "Business Applications"
+      },
+      "grounding_references": [
+        {
+          "doc_id": "MD-IT-006",
+          "section": "5",
+          "supports": [
+            "category",
+            "urgency",
+            "recommended_team"
+          ]
+        }
+      ],
+      "difficulty": "straightforward",
+      "difficulty_note": "A planned catalog seat with no present impact is explicitly a low-urgency licensing request."
+    },
+    {
+      "id": "EVAL-008",
+      "title": "Expired design license blocks client delivery",
+      "description": "My approved design application says its paid seat expired. I am the only affected user and cannot export the customer package due in two hours.",
+      "requester_department": "Design",
+      "affected_service": "Design SaaS",
+      "existing_priority": "P3",
+      "labels": {
+        "category": "software_licensing",
+        "urgency": "high",
+        "recommended_team": "Business Applications"
+      },
+      "grounding_references": [
+        {
+          "doc_id": "MD-IT-006",
+          "section": "5",
+          "supports": [
+            "category",
+            "urgency",
+            "recommended_team"
+          ]
+        }
+      ],
+      "difficulty": "straightforward",
+      "difficulty_note": "The application reports an expired seat and a confirmed near-term customer deadline."
+    },
+    {
+      "id": "EVAL-009",
+      "title": "Desktop mail is not syncing",
+      "description": "Meridian Mail on my laptop has not synced for an hour, but the web client works and I can send and receive there. No one else on my team is affected.",
+      "requester_department": "Legal Operations",
+      "affected_service": "Meridian Mail",
+      "existing_priority": null,
+      "labels": {
+        "category": "email_collaboration",
+        "urgency": "medium",
+        "recommended_team": "Business Applications"
+      },
+      "grounding_references": [
+        {
+          "doc_id": "MD-IT-007",
+          "section": "5",
+          "supports": [
+            "category",
+            "urgency",
+            "recommended_team"
+          ]
+        }
+      ],
+      "difficulty": "straightforward",
+      "difficulty_note": "A single-user mail client issue with a functioning web workaround is the guide's P3 example."
+    },
+    {
+      "id": "EVAL-010",
+      "title": "Meridian Mail outage across both offices",
+      "description": "At least forty employees in both offices cannot open Meridian Mail or send messages. The operations mailbox has no alternate and dispatch updates are stopped.",
+      "requester_department": "Operations",
+      "affected_service": "Meridian Mail",
+      "existing_priority": null,
+      "labels": {
+        "category": "email_collaboration",
+        "urgency": "critical",
+        "recommended_team": "Business Applications"
+      },
+      "grounding_references": [
+        {
+          "doc_id": "MD-IT-007",
+          "section": "5",
+          "supports": [
+            "category",
+            "urgency",
+            "recommended_team"
+          ]
+        }
+      ],
+      "difficulty": "straightforward",
+      "difficulty_note": "The report identifies more than 10 users and a critical operational mailbox with no alternate."
+    },
+    {
+      "id": "EVAL-011",
+      "title": "Entered password on suspicious email page",
+      "description": "I opened a link in an unexpected benefits email and entered my Meridian password before noticing the address was wrong. I have not seen an unknown sign-in yet.",
+      "requester_department": "People Operations",
+      "affected_service": "Meridian identity",
+      "existing_priority": null,
+      "labels": {
+        "category": "security_incident",
+        "urgency": "high",
+        "recommended_team": "IT Security"
+      },
+      "grounding_references": [
+        {
+          "doc_id": "MD-IT-008",
+          "section": "5",
+          "supports": [
+            "category",
+            "urgency",
+            "recommended_team"
+          ]
+        }
+      ],
+      "difficulty": "straightforward",
+      "difficulty_note": "Credential disclosure without confirmed unauthorized access is explicitly a high-urgency P2 security incident."
+    },
+    {
+      "id": "EVAL-012",
+      "title": "Prepare standard IT setup for new employee",
+      "description": "A new support analyst starts in three weeks. The approved workforce record is complete; please coordinate the standard identity, laptop, MFA, and catalog application setup.",
+      "requester_department": "Customer Support",
+      "affected_service": "Employee onboarding",
+      "existing_priority": null,
+      "labels": {
+        "category": "general_inquiry",
+        "urgency": "low",
+        "recommended_team": "Service Desk"
+      },
+      "grounding_references": [
+        {
+          "doc_id": "MD-IT-009",
+          "section": "5",
+          "supports": [
+            "category",
+            "urgency",
+            "recommended_team"
+          ]
+        }
+      ],
+      "difficulty": "straightforward",
+      "difficulty_note": "A complete onboarding request submitted well ahead of the start date is routine Service Desk coordination."
+    },
+    {
+      "id": "EVAL-013",
+      "title": "Cannot reach ERP from home",
+      "description": "The ERP will not open from home. Ordinary websites work, but MeridianConnect never finishes connecting and shows a tunnel timeout, so I cannot test the ERP itself.",
+      "requester_department": "Supply Chain",
+      "affected_service": "ERP over MeridianConnect",
+      "existing_priority": null,
+      "labels": {
+        "category": "network_access",
+        "urgency": "medium",
+        "recommended_team": "IT Infrastructure"
+      },
+      "grounding_references": [
+        {
+          "doc_id": "MD-IT-001",
+          "section": "4",
+          "supports": [
+            "category"
+          ]
+        },
+        {
+          "doc_id": "MD-IT-001",
+          "section": "5",
+          "supports": [
+            "urgency",
+            "recommended_team"
+          ]
+        }
+      ],
+      "difficulty": "ambiguous",
+      "difficulty_note": "The named application suggests Business Applications, but the evidence says the VPN tunnel itself never forms."
+    },
+    {
+      "id": "EVAL-014",
+      "title": "Password works but new phone cannot approve sign-in",
+      "description": "I changed phones yesterday. My password is accepted, then sign-in waits for an approval on the erased old phone. I have no saved recovery code and payroll closes this morning.",
+      "requester_department": "Payroll",
+      "affected_service": "Meridian identity",
+      "existing_priority": null,
+      "labels": {
+        "category": "account_access",
+        "urgency": "high",
+        "recommended_team": "IT Security"
+      },
+      "grounding_references": [
+        {
+          "doc_id": "MD-IT-004",
+          "section": "4",
+          "supports": [
+            "category"
+          ]
+        },
+        {
+          "doc_id": "MD-IT-004",
+          "section": "5",
+          "supports": [
+            "urgency",
+            "recommended_team"
+          ]
+        }
+      ],
+      "difficulty": "ambiguous",
+      "difficulty_note": "The ticket mentions a password, but successful first-factor validation and an unavailable old phone identify MFA recovery."
+    },
+    {
+      "id": "EVAL-015",
+      "title": "Camera missing in every meeting app",
+      "description": "My external camera is not detected in TeamSpace or the operating-system camera test, though TeamSpace itself loads and coworkers can join meetings. I can dial in without video.",
+      "requester_department": "Recruiting",
+      "affected_service": "External camera",
+      "existing_priority": null,
+      "labels": {
+        "category": "hardware",
+        "urgency": "medium",
+        "recommended_team": "Workplace IT"
+      },
+      "grounding_references": [
+        {
+          "doc_id": "MD-IT-007",
+          "section": "4",
+          "supports": [
+            "category",
+            "recommended_team"
+          ]
+        },
+        {
+          "doc_id": "MD-IT-005",
+          "section": "5",
+          "supports": [
+            "urgency",
+            "recommended_team"
+          ]
+        }
+      ],
+      "difficulty": "ambiguous",
+      "difficulty_note": "Meeting vocabulary points toward collaboration, but failure outside the application and a dial-in workaround make this hardware."
+    },
+    {
+      "id": "EVAL-016",
+      "title": "Two seats show subscription expired",
+      "description": "Two analysts see 'subscription expired' in the approved forecasting application. Other licensed users can still open it, and both blocked analysts need it for today's forecast review.",
+      "requester_department": "Revenue Operations",
+      "affected_service": "Forecasting SaaS",
+      "existing_priority": null,
+      "labels": {
+        "category": "software_licensing",
+        "urgency": "high",
+        "recommended_team": "Business Applications"
+      },
+      "grounding_references": [
+        {
+          "doc_id": "MD-IT-006",
+          "section": "5",
+          "supports": [
+            "category",
+            "urgency",
+            "recommended_team"
+          ]
+        }
+      ],
+      "difficulty": "ambiguous",
+      "difficulty_note": "Multiple affected users could suggest an outage, but the explicit seat-expiration message and unaffected licensed users make licensing primary."
+    },
+    {
+      "id": "EVAL-017",
+      "title": "Odd calendar invitation asked me to sign in",
+      "description": "A calendar invitation from an unknown sender opened a page asking for my company password. I closed it without entering anything, but three teammates received the same invitation.",
+      "requester_department": "Engineering",
+      "affected_service": "Meridian Mail calendar",
+      "existing_priority": null,
+      "labels": {
+        "category": "security_incident",
+        "urgency": "high",
+        "recommended_team": "IT Security"
+      },
+      "grounding_references": [
+        {
+          "doc_id": "MD-IT-007",
+          "section": "5",
+          "supports": [
+            "category",
+            "recommended_team"
+          ]
+        },
+        {
+          "doc_id": "MD-IT-008",
+          "section": "5",
+          "supports": [
+            "urgency",
+            "recommended_team"
+          ]
+        }
+      ],
+      "difficulty": "ambiguous",
+      "difficulty_note": "The delivery mechanism is a calendar, but the unexpected credential page makes security the owning category."
+    },
+    {
+      "id": "EVAL-018",
+      "title": "URGENT: cafeteria menu request",
+      "description": "Please add more vegetarian options to the third-floor cafeteria menu. This is urgent to me, but no technology service, account, device, or company data is affected.",
+      "requester_department": "Facilities",
+      "affected_service": "Cafeteria",
+      "existing_priority": "P1",
+      "labels": {
+        "category": "general_inquiry",
+        "urgency": "low",
+        "recommended_team": "Service Desk"
+      },
+      "grounding_references": [
+        {
+          "doc_id": "MD-IT-002",
+          "section": "1",
+          "supports": [
+            "urgency"
+          ]
+        },
+        {
+          "doc_id": "MD-IT-002",
+          "section": "5",
+          "supports": [
+            "category",
+            "recommended_team"
+          ]
+        }
+      ],
+      "difficulty": "adversarial",
+      "difficulty_note": "The topic is outside the IT corpus and an unsupported urgency claim plus existing P1 must not force a specialist route."
+    },
+    {
+      "id": "EVAL-019",
+      "title": "Everything is broken",
+      "description": "My computer thing is not right. Fix it ASAP.",
+      "requester_department": "Strategy",
+      "affected_service": "Unknown",
+      "existing_priority": null,
+      "labels": {
+        "category": "general_inquiry",
+        "urgency": "low",
+        "recommended_team": "Service Desk"
+      },
+      "grounding_references": [
+        {
+          "doc_id": "MD-IT-002",
+          "section": "1",
+          "supports": [
+            "urgency"
+          ]
+        },
+        {
+          "doc_id": "MD-IT-002",
+          "section": "5",
+          "supports": [
+            "category",
+            "recommended_team"
+          ]
+        }
+      ],
+      "difficulty": "adversarial",
+      "difficulty_note": "The vague description supplies no observable impact or evidence for hardware or any other specialist category."
+    },
+    {
+      "id": "EVAL-020",
+      "title": "P1 urgent request for optional mouse",
+      "description": "I need a second wireless mouse for a project that starts next month. My current mouse works and I marked this P1 because I would like it ordered today.",
+      "requester_department": "Research",
+      "affected_service": "Computer peripheral",
+      "existing_priority": "P1",
+      "labels": {
+        "category": "hardware",
+        "urgency": "low",
+        "recommended_team": "Workplace IT"
+      },
+      "grounding_references": [
+        {
+          "doc_id": "MD-IT-005",
+          "section": "5",
+          "supports": [
+            "category",
+            "urgency",
+            "recommended_team"
+          ]
+        },
+        {
+          "doc_id": "MD-IT-002",
+          "section": "1",
+          "supports": [
+            "urgency"
+          ]
+        }
+      ],
+      "difficulty": "adversarial",
+      "difficulty_note": "A functioning current device and next-month need make this a low-urgency hardware request despite the P1 claim."
+    }
+  ],
+  "demo_tickets": [
+    {
+      "id": "DEMO-001",
+      "title": "VPN timeout before afternoon customer demo",
+      "description": "MeridianConnect times out from my home network while ordinary websites work. I have a customer demonstration at 2 p.m. and no approved alternate connection.",
+      "requester_department": "Sales Engineering",
+      "affected_service": "MeridianConnect VPN",
+      "existing_priority": null
+    },
+    {
+      "id": "DEMO-002",
+      "title": "Need access after phone replacement",
+      "description": "My old authenticator phone was erased during replacement. My password works, but I have no recovery code and cannot approve the second factor.",
+      "requester_department": "Customer Support",
+      "affected_service": "Meridian identity MFA",
+      "existing_priority": null
+    },
+    {
+      "id": "DEMO-003",
+      "title": "Suspicious invoice attachment opened",
+      "description": "I opened an unexpected invoice attachment and then saw a command window flash. I disconnected from Wi-Fi and have not deleted the message.",
+      "requester_department": "Accounts Payable",
+      "affected_service": "Managed laptop and Meridian Mail",
+      "existing_priority": null
+    },
+    {
+      "id": "DEMO-004",
+      "title": "Request project planning license",
+      "description": "My manager approved one catalog project-planning SaaS seat for work beginning in two weeks. The cost center and business purpose are available.",
+      "requester_department": "Program Management",
+      "affected_service": "Project planning SaaS",
+      "existing_priority": null
+    },
+    {
+      "id": "DEMO-005",
+      "title": "New starter has no prepared laptop",
+      "description": "Our new analyst starts today and their identity is ready, but the onboarding checklist shows no laptop assigned. They have no alternate managed device.",
+      "requester_department": "Operations",
+      "affected_service": "Employee onboarding",
+      "existing_priority": null
+    }
+  ]
+}

@@ -1,0 +1,97 @@
+DOC ID: MD-IT-009
+TITLE: Onboarding & Offboarding IT Checklist
+VERSION: 1.0
+EFFECTIVE DATE: 2026-07-01
+OWNER TEAM: Service Desk
+APPLIES TO: Meridian Dynamics employees, contractors, managers, and IT fulfillment teams
+REVIEW CADENCE: Semiannual
+
+MD-IT-009 — Onboarding & Offboarding IT Checklist
+
+1. Purpose
+
+This checklist coordinates the identity, hardware, application, and security
+work required when a person joins, changes role, takes extended leave, or leaves
+Meridian Dynamics. It is the source for requests such as “new hire starts
+Monday,” “contractor needs access,” “employee transferred departments,” and
+“disable access today.” Service Desk owns checklist coordination, but each
+specialist team remains accountable for its own control. The checklist prevents
+late access, excessive access, unreturned equipment, orphaned licenses, and
+accounts that remain active after the authorized end time.
+
+2. Scope
+
+The checklist applies to employees and contractors who receive a Meridian
+identity, managed hardware, office access-related IT services, or business
+application access. It covers pre-start preparation, first-day verification,
+role changes, planned departures, and urgent involuntary separations.
+Human-resources decisions, payroll, benefits, and legal records are outside this
+IT checklist. A manager authorizes business need but cannot ask support to share
+another person’s password or bypass identity verification. Password recovery
+follows MD-IT-003, MFA follows MD-IT-004, hardware fulfillment follows
+MD-IT-005, licensing follows MD-IT-006, and suspected insider misuse follows
+MD-IT-008.
+
+3. Definitions
+
+An onboarding request creates or prepares approved IT access for a person who
+has not started. An offboarding request removes access and recovers assets at an
+authorized time. A role change reevaluates access rather than copying all
+permissions from another employee. The authoritative start time and end time
+come from the approved workforce record. Least privilege means granting only
+access required by the current role. A checklist owner is the Service Desk
+analyst who tracks dependencies and completion; the owner does not personally
+perform every task. Employees commonly write “new starter,” “new hire setup,”
+“transfer access,” “termination,” “disable account,” or “collect laptop.”
+
+4. Policy / Procedure
+
+For onboarding, the manager submits the person’s legal display name, workforce
+identifier, department, manager, work location, start date, employment type,
+standard role, hardware needs, and application needs at least five business days
+before the start. Service Desk validates the approved workforce record and opens
+linked tasks. IT Security creates the Meridian identity and required groups.
+Workplace IT prepares an encrypted managed device. Business Applications assigns
+approved license seats. The employee completes identity verification, password
+setup, and MFA enrollment on or after the authorized start time; credentials are
+never sent to the manager.
+
+For a role change, the manager states access to add and remove. Existing access
+is reviewed; permissions are not cloned from a peer. For offboarding, the
+authorized request specifies the exact disable time, asset return plan, data
+owner, and application ownership transfer. IT Security disables interactive
+access and active sessions at that time. Business Applications removes roles
+and recovers seats. Workplace IT records returned assets and erasure. Service
+Desk closes the checklist only after each linked task has evidence of completion.
+An urgent involuntary separation is coordinated privately with IT Security and
+the approved workforce owner; support does not reveal the action early.
+
+5. Priority & escalation
+
+Service Desk owns `general_inquiry` coordination for routine onboarding,
+offboarding, and role-change checklists. A request submitted at least five
+business days before a planned start or departure is low urgency, P4, with a
+one-business-day initial response. A new starter blocked on the authorized first
+day is high urgency, P2, with a thirty-minute response and escalation to the
+team holding the incomplete task. An approved urgent separation with an
+immediate disable time is critical urgency, P1, and owned operationally by IT
+Security until sessions and access are revoked. A missed offboarding deadline or
+sign-in after the authorized end time is a security incident under MD-IT-008.
+MD-IT-002 controls priority when impact differs from these examples.
+
+6. Related documents
+
+MD-IT-002 defines P1–P4 impact and urgency. MD-IT-003 defines first-sign-in and
+assisted password recovery controls. MD-IT-004 defines required MFA enrollment.
+MD-IT-005 governs device fulfillment, loaners, returns, and erasure. MD-IT-006
+governs application approval and license recovery. MD-IT-008 governs unexpected
+post-departure access or suspected insider misuse. MD-IT-010 applies to remote
+starter equipment and work locations.
+
+7. Revision history
+
+Version 1.0 became effective on 2026-07-01. It establishes the five-business-day
+lead time, authoritative start and end times, no credential sharing with
+managers, role-change access review, linked-task evidence, and immediate
+security escalation for missed revocation or post-departure access.
+

@@ -1,0 +1,570 @@
+%PDF-1.4
+%‚„œ”
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Count 2 /Kids [5 0 R 7 0 R] >>
+endobj
+3 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+4 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>
+endobj
+5 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents 6 0 R >>
+endobj
+6 0 obj
+<< /Length 4717 >>
+stream
+BT
+/F2 11 Tf
+1 0 0 1 54 738 Tm
+(Doc Id: MD-IT-008) Tj
+ET
+BT
+/F2 11 Tf
+1 0 0 1 54 725 Tm
+(Title: Security Incident Reporting Policy) Tj
+ET
+BT
+/F2 11 Tf
+1 0 0 1 54 712 Tm
+(Version: "1.0") Tj
+ET
+BT
+/F2 11 Tf
+1 0 0 1 54 699 Tm
+(Effective Date: 2026-07-01) Tj
+ET
+BT
+/F2 11 Tf
+1 0 0 1 54 686 Tm
+(Owner Team: IT Security) Tj
+ET
+BT
+/F2 11 Tf
+1 0 0 1 54 673 Tm
+(Applies To: Everyone with access to Meridian Dynamics devices, accounts, data, or facilities) Tj
+ET
+BT
+/F2 11 Tf
+1 0 0 1 54 660 Tm
+(Review Cadence: Semiannual) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 647 Tm
+() Tj
+ET
+BT
+/F2 11 Tf
+1 0 0 1 54 634 Tm
+(MD-IT-008 - Security Incident Reporting Policy) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 621 Tm
+() Tj
+ET
+BT
+/F2 11 Tf
+1 0 0 1 54 608 Tm
+(1. Purpose) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 595 Tm
+() Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 582 Tm
+(This policy tells employees and contractors how to report suspected phishing,) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 569 Tm
+(credential disclosure, malware, lost devices, unauthorized access, data) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 556 Tm
+(exposure, and other security concerns. Early reporting is required even when the) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 543 Tm
+(reporter is uncertain or believes they made a mistake. Common tickets include) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 530 Tm
+(ìI clicked a phishing link,î ìI entered my password,î ìunexpected MFA prompt,î) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 517 Tm
+(ìlaptop was stolen,î and ìa file was shared with the wrong person.î The policy) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 504 Tm
+(prioritizes personal safety, containment, evidence preservation, and rapid IT) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 491 Tm
+(Security ownership. Reporting in good faith is encouraged and must not be) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 478 Tm
+(delayed while the employee investigates alone.) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 465 Tm
+() Tj
+ET
+BT
+/F2 11 Tf
+1 0 0 1 54 452 Tm
+(2. Scope) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 439 Tm
+() Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 426 Tm
+(The policy applies to Meridian identities, managed and personal devices used for) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 413 Tm
+(company access, email and collaboration, business applications, physical media,) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 400 Tm
+(customer or company data, and suspicious activity observed at any location. It) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 387 Tm
+(covers suspected events; proof is not required before reporting. Routine spam) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 374 Tm
+(with no interaction may be reported through the approved message-report) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 361 Tm
+(control, while any click, attachment opening, credential entry, approval prompt,) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 348 Tm
+(or reply requires a support incident. Ordinary password lockout follows) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 335 Tm
+(MD-IT-003 only when no suspicious signal exists. Hardware failure follows) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 322 Tm
+(MD-IT-005 unless loss, theft, tampering, or safety is involved. Employees must) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 309 Tm
+(not contact a suspected attacker, affected external person, or law enforcement) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 296 Tm
+(on the companyís behalf unless directed.) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 283 Tm
+() Tj
+ET
+BT
+/F2 11 Tf
+1 0 0 1 54 270 Tm
+(3. Definitions) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 257 Tm
+() Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 244 Tm
+(A security incident is suspected or confirmed activity that could harm) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 231 Tm
+(confidentiality, integrity, availability, identity, or physical device control.) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 218 Tm
+(Phishing is a deceptive message, call, or page intended to obtain) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 205 Tm
+(credentials, approval, money, or data. Credential disclosure occurs when a) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 192 Tm
+(password, recovery code, token, or MFA approval is provided to an untrusted) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 179 Tm
+(party. Active compromise means unauthorized access is observed or strongly) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 166 Tm
+(confirmed and may still be occurring. Data exposure means company or) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 153 Tm
+(customer information reached an unauthorized person or location. Evidence) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 140 Tm
+(preservation means keeping the message, timestamp, device state, address, and) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 127 Tm
+(error without altering or publicly sharing them. Employees may say ìhacked,î) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 114 Tm
+(ìclicked a bad link,î ìsent to wrong person,î ìvirus pop-up,î or ìphone stolen.î) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 101 Tm
+() Tj
+ET
+BT
+/F2 11 Tf
+1 0 0 1 54 88 Tm
+(4. Policy / Procedure) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 75 Tm
+() Tj
+ET
+BT
+/F1 8 Tf
+1 0 0 1 54 30 Tm
+(Meridian Dynamics | Page 1 of 2) Tj
+ET
+endstream
+endobj
+7 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents 8 0 R >>
+endobj
+8 0 obj
+<< /Length 4926 >>
+stream
+BT
+/F1 9 Tf
+1 0 0 1 54 738 Tm
+(1. If there is physical danger, smoke, or threat, move to safety first and use) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 725 Tm
+(local emergency procedures. Otherwise stop interacting with the suspicious) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 712 Tm
+(message, page, device, or person.) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 699 Tm
+(2. Report immediately through the security incident channel or Service Desk.) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 686 Tm
+(Include the time, device, account, what was clicked or entered, observed) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 673 Tm
+(prompts, data involved, and current device location. State plainly if a) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 660 Tm
+(password was entered or an MFA prompt approved.) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 647 Tm
+(3. Preserve evidence. Do not delete the message, wipe the device, forward the) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 634 Tm
+(content externally, run unapproved cleanup tools, or continue testing a link.) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 621 Tm
+(Disconnect a managed device from networks only when instructed or when) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 608 Tm
+(obviously active malicious control is occurring; keep it powered on unless) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 595 Tm
+(safety requires otherwise.) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 582 Tm
+(4. IT Security validates scope, contains sessions or devices, resets credentials) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 569 Tm
+(through controlled procedures, and coordinates notifications. Service Desk) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 556 Tm
+(does not independently promise that an incident is resolved.) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 543 Tm
+(5. Continue reporting new prompts or activity and follow the incident leadís) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 530 Tm
+(instructions. Business communications to customers or outside parties are) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 517 Tm
+(made only by authorized Meridian Dynamics representatives.) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 504 Tm
+() Tj
+ET
+BT
+/F2 11 Tf
+1 0 0 1 54 491 Tm
+(5. Priority & escalation) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 478 Tm
+() Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 465 Tm
+(IT Security owns every security_incident. Confirmed active compromise,) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 452 Tm
+(confirmed data exposure, dangerous device behavior, or unauthorized access to a) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 439 Tm
+(critical service is critical urgency and P1 with immediate paging. Suspected) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 426 Tm
+(phishing interaction, a clicked link, opened attachment, disclosed password,) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 413 Tm
+(unexpected MFA approval, stolen managed device, or suspected exposure without) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 400 Tm
+(confirmed access is high urgency and P2 with a fifteen-minute initial response.) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 387 Tm
+(An unclicked suspicious message reported through the approved control is medium) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 374 Tm
+(urgency, normally P3, unless a campaign affects 10 or more users, in which case) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 361 Tm
+(it escalates to P1 or P2 based on interaction and impact. General security) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 348 Tm
+(questions with no event are low urgency and may begin with Service Desk. The) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 335 Tm
+(reporterís uncertainty never justifies downgrading observable risk; MD-IT-002) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 322 Tm
+(governs reassessment.) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 309 Tm
+() Tj
+ET
+BT
+/F2 11 Tf
+1 0 0 1 54 296 Tm
+(6. Related documents) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 283 Tm
+() Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 270 Tm
+(MD-IT-002 defines the general impact and urgency matrix. MD-IT-003 governs) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 257 Tm
+(controlled password reset after IT Security contains a suspected account.) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 244 Tm
+(MD-IT-004 governs factor replacement after device loss or unexpected prompts.) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 231 Tm
+(MD-IT-005 governs safe handling and replacement after a device incident.) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 218 Tm
+(MD-IT-007 describes the boundary between collaboration troubleshooting and) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 205 Tm
+(phishing. MD-IT-009 covers urgent access revocation, and MD-IT-010 covers remote) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 192 Tm
+(privacy and suspicious network warnings.) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 179 Tm
+() Tj
+ET
+BT
+/F2 11 Tf
+1 0 0 1 54 166 Tm
+(7. Revision history) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 153 Tm
+() Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 140 Tm
+(Version 1.0 became effective on 2026-07-01. It establishes immediate) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 127 Tm
+(good-faith reporting, explicit phishing and credential-disclosure examples,) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 114 Tm
+(evidence-preservation rules, fifteen-minute P2 response, confirmed-compromise P1) Tj
+ET
+BT
+/F1 9 Tf
+1 0 0 1 54 101 Tm
+(handling, and exclusive IT Security ownership of incident containment.) Tj
+ET
+BT
+/F1 8 Tf
+1 0 0 1 54 30 Tm
+(Meridian Dynamics | Page 2 of 2) Tj
+ET
+endstream
+endobj
+9 0 obj
+<< /Title (Security Incident Reporting Policy) /Author (Meridian Dynamics, Inc.) /Subject (Fictional enterprise IT policy fixture) >>
+endobj
+xref
+0 10
+0000000000 65535 f 
+0000000015 00000 n 
+0000000064 00000 n 
+0000000127 00000 n 
+0000000197 00000 n 
+0000000272 00000 n 
+0000000408 00000 n 
+0000005177 00000 n 
+0000005313 00000 n 
+0000010291 00000 n 
+trailer
+<< /Size 10 /Root 1 0 R /Info 9 0 R >>
+startxref
+10440
+%%EOF

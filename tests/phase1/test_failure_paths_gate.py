@@ -1,21 +1,19 @@
 from __future__ import annotations
 
 import os
-from pathlib import Path
 import shutil
 import subprocess
 import time
+from pathlib import Path
 from uuid import uuid4
 
 import pytest
-
 from conftest import (
     Phase1Client,
     document_id_from,
     response_detail,
     wait_for_document_status,
 )
-
 
 MAX_UPLOAD_BYTES = 20 * 1024 * 1024
 
@@ -72,9 +70,9 @@ def test_g1_4_corrupt_accepted_file_fails_with_human_readable_error_within_60s(
     assert elapsed <= 60, f"corrupt ingestion took {elapsed:.2f}s to fail"
     error_message = status.get("error_message")
     assert isinstance(error_message, str) and len(error_message.strip()) >= 8
-    assert any(
-        character.isalpha() for character in error_message
-    ), f"error_message is not human-readable: {error_message!r}"
+    assert any(character.isalpha() for character in error_message), (
+        f"error_message is not human-readable: {error_message!r}"
+    )
 
 
 def _run_compose(
@@ -94,7 +92,7 @@ def _run_compose(
 def test_g1_4_killed_worker_document_is_recoverable_via_reingest(
     repository_root: Path,
     phase1_client: Phase1Client,
-    org_a_id: str,
+    worker_recovery_org_id: str,
     ensure_worker_running: None,
 ) -> None:
     del ensure_worker_running
@@ -123,7 +121,7 @@ def test_g1_4_killed_worker_document_is_recoverable_via_reingest(
         "This repeated content creates enough chunks to observe processing.\n" * 50_000
     ).encode()
     response = phase1_client.upload_bytes(
-        org_id=org_a_id,
+        org_id=worker_recovery_org_id,
         filename=f"worker-recovery-{marker}.txt",
         title=f"Worker Recovery Probe {marker}",
         content=slow_content,
@@ -135,7 +133,7 @@ def test_g1_4_killed_worker_document_is_recoverable_via_reingest(
     assert started.returncode == 0, started.stdout + started.stderr
     processing, _ = wait_for_document_status(
         phase1_client,
-        org_id=org_a_id,
+        org_id=worker_recovery_org_id,
         document_id=document_id,
         terminal_statuses={"processing", "ready", "failed"},
         timeout=30,
@@ -148,18 +146,18 @@ def test_g1_4_killed_worker_document_is_recoverable_via_reingest(
 
     killed = _run_compose(repository_root, compose_file, "kill", "worker")
     assert killed.returncode == 0, killed.stdout + killed.stderr
-    stranded = phase1_client.document_status(org_a_id, document_id)
+    stranded = phase1_client.document_status(worker_recovery_org_id, document_id)
     assert stranded.status == 200, response_detail(stranded)
     assert isinstance(stranded.body, dict)
     assert stranded.body.get("status") == "processing"
 
     restarted = _run_compose(repository_root, compose_file, "up", "-d", "worker")
     assert restarted.returncode == 0, restarted.stdout + restarted.stderr
-    reingest = phase1_client.reingest(org_a_id, document_id)
+    reingest = phase1_client.reingest(worker_recovery_org_id, document_id)
     assert reingest.status in {200, 202}, response_detail(reingest)
     recovered, _ = wait_for_document_status(
         phase1_client,
-        org_id=org_a_id,
+        org_id=worker_recovery_org_id,
         document_id=document_id,
         terminal_statuses={"ready", "failed"},
         timeout=float(os.environ.get("PHASE1_INGEST_TIMEOUT_SECONDS", "120")),

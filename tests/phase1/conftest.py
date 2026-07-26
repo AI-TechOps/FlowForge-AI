@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Iterator
-from dataclasses import dataclass
 import json
 import mimetypes
 import os
-from pathlib import Path
 import time
+from collections.abc import Iterator
+from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode, urlsplit, urlunsplit
@@ -15,7 +15,6 @@ from urllib.request import Request, urlopen
 from uuid import UUID, uuid4
 
 import pytest
-
 
 DEFAULT_BASE_URL = "http://localhost:8000"
 DEFAULT_ORG_HEADER = "X-Org-ID"
@@ -65,9 +64,7 @@ class Phase1Client:
             method=method,
         )
         try:
-            with urlopen(  # noqa: S310 - the gate targets a configured local API
-                request, timeout=timeout
-            ) as response:
+            with urlopen(request, timeout=timeout) as response:
                 raw = response.read()
                 status = response.status
         except HTTPError as exc:
@@ -180,9 +177,9 @@ def response_detail(response: ApiResponse) -> str:
 def document_id_from(response: ApiResponse) -> str:
     assert isinstance(response.body, dict), response_detail(response)
     document_id = response.body.get("id", response.body.get("document_id"))
-    assert (
-        isinstance(document_id, str) and document_id
-    ), f"202 upload response must include a document id: {response.body!r}"
+    assert isinstance(document_id, str) and document_id, (
+        f"202 upload response must include a document id: {response.body!r}"
+    )
     return document_id
 
 
@@ -191,9 +188,9 @@ def documents_from(response: ApiResponse) -> list[dict[str, object]]:
     payload = response.body
     if isinstance(payload, dict):
         payload = payload.get("documents")
-    assert isinstance(
-        payload, list
-    ), f"document list must be a list or {{'documents': [...]}}: {response.body!r}"
+    assert isinstance(payload, list), (
+        f"document list must be a list or {{'documents': [...]}}: {response.body!r}"
+    )
     assert all(isinstance(item, dict) for item in payload)
     return payload
 
@@ -203,9 +200,9 @@ def retrieval_results_from(response: ApiResponse) -> list[dict[str, object]]:
     payload = response.body
     if isinstance(payload, dict):
         payload = payload.get("results")
-    assert isinstance(
-        payload, list
-    ), f"retrieval response must be a list or {{'results': [...]}}: {response.body!r}"
+    assert isinstance(payload, list), (
+        f"retrieval response must be a list or {{'results': [...]}}: {response.body!r}"
+    )
     assert all(isinstance(item, dict) for item in payload)
     return payload
 
@@ -226,9 +223,9 @@ def wait_for_document_status(
         assert last_response.status == 200, response_detail(last_response)
         assert isinstance(last_response.body, dict), response_detail(last_response)
         status = last_response.body.get("status")
-        assert isinstance(
-            status, str
-        ), f"status response must include string status: {last_response.body!r}"
+        assert isinstance(status, str), (
+            f"status response must include string status: {last_response.body!r}"
+        )
         if status in terminal_statuses:
             return last_response.body, time.monotonic() - started
         time.sleep(interval)
@@ -250,7 +247,7 @@ def _asyncpg_url(database_url: str) -> str:
     )
 
 
-async def _seed_organizations(database_url: str, org_ids: tuple[str, str]) -> None:
+async def _seed_organizations(database_url: str, org_ids: tuple[str, ...]) -> None:
     try:
         import asyncpg
     except ImportError as exc:
@@ -343,6 +340,46 @@ def org_b_id(organization_ids: tuple[str, str]) -> str:
     return organization_ids[1]
 
 
+@pytest.fixture(scope="session")
+def worker_recovery_org_id() -> str:
+    database_url = os.environ.get("PHASE1_DATABASE_URL")
+    if not database_url:
+        message = (
+            "PHASE1_DATABASE_URL is required to create the isolated worker-recovery "
+            "organization"
+        )
+        if _truthy_environment("PHASE1_REQUIRE_LIVE"):
+            pytest.fail(message)
+        pytest.skip(message)
+
+    org_id = str(uuid4())
+    try:
+        asyncio.run(_seed_organizations(database_url, (org_id,)))
+    except Exception as exc:  # noqa: BLE001 - preserve integration setup failure
+        pytest.fail(f"could not seed the isolated worker-recovery organization: {exc}")
+    return org_id
+
+
+@pytest.fixture(scope="session")
+def tenant_probe_organization_ids() -> tuple[str, str]:
+    database_url = os.environ.get("PHASE1_DATABASE_URL")
+    if not database_url:
+        message = (
+            "PHASE1_DATABASE_URL is required to create isolated tenant-probe "
+            "organizations"
+        )
+        if _truthy_environment("PHASE1_REQUIRE_LIVE"):
+            pytest.fail(message)
+        pytest.skip(message)
+
+    org_ids = (str(uuid4()), str(uuid4()))
+    try:
+        asyncio.run(_seed_organizations(database_url, org_ids))
+    except Exception as exc:  # noqa: BLE001 - preserve integration setup failure
+        pytest.fail(f"could not seed isolated tenant-probe organizations: {exc}")
+    return org_ids
+
+
 def locate_corpus_paths(repository_root: Path) -> tuple[dict[str, Path], list[str]]:
     enterprise_dir = repository_root / "fixtures" / "enterprise"
     required_extensions = {
@@ -374,6 +411,25 @@ def locate_corpus_paths(repository_root: Path) -> tuple[dict[str, Path], list[st
     return found, missing
 
 
+# The human-readable title each corpus doc is uploaded under. The upload title
+# is f"{doc_id} — {CORPUS_TITLES[doc_id]}", so retrieval's document_title carries
+# both the id and these distinctive words — the metadata gate queries by title
+# because a bare doc-id string ("002") also appears in other docs' cross-references
+# and cannot reliably surface its own doc.
+CORPUS_TITLES = {
+    "MD-IT-001": "VPN Access Policy",
+    "MD-IT-002": "Incident Priority & Escalation Guidelines",
+    "MD-IT-003": "Password Reset & Account Lockout Procedure",
+    "MD-IT-004": "MFA Enrollment & Recovery",
+    "MD-IT-005": "Hardware Request & Replacement Policy",
+    "MD-IT-006": "Software & SaaS License Request Procedure",
+    "MD-IT-007": "Email & Collaboration Troubleshooting Guide",
+    "MD-IT-008": "Security Incident Reporting Policy",
+    "MD-IT-009": "Onboarding & Offboarding IT Checklist",
+    "MD-IT-010": "Remote Work IT Standards",
+}
+
+
 @pytest.fixture(scope="session")
 def corpus_paths(repository_root: Path) -> dict[str, Path]:
     found, missing = locate_corpus_paths(repository_root)
@@ -384,29 +440,22 @@ def corpus_paths(repository_root: Path) -> dict[str, Path]:
 
 
 @pytest.fixture(scope="session")
+def corpus_titles() -> dict[str, str]:
+    return dict(CORPUS_TITLES)
+
+
+@pytest.fixture(scope="session")
 def ingested_corpus(
     phase1_client: Phase1Client,
     org_a_id: str,
     corpus_paths: dict[str, Path],
 ) -> dict[str, str]:
-    titles = {
-        "MD-IT-001": "VPN Access Policy",
-        "MD-IT-002": "Incident Priority & Escalation Guidelines",
-        "MD-IT-003": "Password Reset & Account Lockout Procedure",
-        "MD-IT-004": "MFA Enrollment & Recovery",
-        "MD-IT-005": "Hardware Request & Replacement Policy",
-        "MD-IT-006": "Software & SaaS License Request Procedure",
-        "MD-IT-007": "Email & Collaboration Troubleshooting Guide",
-        "MD-IT-008": "Security Incident Reporting Policy",
-        "MD-IT-009": "Onboarding & Offboarding IT Checklist",
-        "MD-IT-010": "Remote Work IT Standards",
-    }
     document_ids: dict[str, str] = {}
     for doc_id, path in corpus_paths.items():
         response = phase1_client.upload_path(
             org_id=org_a_id,
             path=path,
-            title=f"{doc_id} — {titles[doc_id]}",
+            title=f"{doc_id} — {CORPUS_TITLES[doc_id]}",
         )
         assert response.status == 202, response_detail(response)
         document_ids[doc_id] = document_id_from(response)
@@ -419,9 +468,9 @@ def ingested_corpus(
             terminal_statuses={"ready", "failed"},
             timeout=float(os.environ.get("PHASE1_INGEST_TIMEOUT_SECONDS", "120")),
         )
-        assert (
-            status["status"] == "ready"
-        ), f"{doc_id} ingestion did not succeed: {status!r}"
+        assert status["status"] == "ready", (
+            f"{doc_id} ingestion did not succeed: {status!r}"
+        )
     return document_ids
 
 

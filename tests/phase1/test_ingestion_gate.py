@@ -37,15 +37,15 @@ def test_g1_1_every_fixture_document_is_ready_with_chunks(
     }
 
     for doc_id, document_id in ingested_corpus.items():
-        assert (
-            document_id in documents_by_id
-        ), f"{doc_id} ({document_id}) is missing from GET /api/documents"
+        assert document_id in documents_by_id, (
+            f"{doc_id} ({document_id}) is missing from GET /api/documents"
+        )
         document = documents_by_id[document_id]
         assert document.get("status") == "ready"
         chunk_count = document.get("chunk_count")
-        assert (
-            isinstance(chunk_count, int) and chunk_count > 0
-        ), f"{doc_id} must report chunk_count > 0: {document!r}"
+        assert isinstance(chunk_count, int) and chunk_count > 0, (
+            f"{doc_id} must report chunk_count > 0: {document!r}"
+        )
 
 
 def test_g1_1_pdf_and_markdown_chunks_preserve_source_metadata(
@@ -53,11 +53,16 @@ def test_g1_1_pdf_and_markdown_chunks_preserve_source_metadata(
     org_a_id: str,
     ingested_corpus: dict[str, str],
     corpus_paths: dict[str, Path],
+    corpus_titles: dict[str, str],
 ) -> None:
     for doc_id, path in corpus_paths.items():
         if path.suffix.lower() not in {".pdf", ".md"}:
             continue
-        response = phase1_client.retrieve(org_a_id, doc_id, k=10)
+        # Query by the doc's distinctive title rather than its bare id: the id
+        # token (e.g. "002") also appears in other docs' cross-references and
+        # cannot reliably surface its own chunks. The document is still
+        # identified by id via the returned document_title below.
+        response = phase1_client.retrieve(org_a_id, corpus_titles[doc_id], k=10)
         results = retrieval_results_from(response)
         matching = [
             result

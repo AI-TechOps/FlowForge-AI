@@ -42,9 +42,9 @@ def _upload_tenant_probe(
 
 def test_g1_3_retrieval_never_crosses_organization_boundaries(
     phase1_client: Phase1Client,
-    org_a_id: str,
-    org_b_id: str,
+    tenant_probe_organization_ids: tuple[str, str],
 ) -> None:
+    org_a_id, org_b_id = tenant_probe_organization_ids
     marker_a = f"org-a-{uuid4().hex}"
     marker_b = f"org-b-{uuid4().hex}"
     title_a = f"Tenant A Probe {marker_a}"
@@ -67,21 +67,21 @@ def test_g1_3_retrieval_never_crosses_organization_boundaries(
 
     titles_a = {str(result.get("document_title", "")) for result in results_a}
     titles_b = {str(result.get("document_title", "")) for result in results_b}
-    assert not any(
-        marker_b in title for title in titles_a
-    ), f"org A retrieved org B's document: {sorted(titles_a)}"
-    assert not any(
-        marker_a in title for title in titles_b
-    ), f"org B retrieved org A's document: {sorted(titles_b)}"
-    assert any(
-        marker_a in title for title in titles_a
-    ), "org A must still retrieve its own probe document"
-    assert any(
-        marker_b in title for title in titles_b
-    ), "org B must still retrieve its own probe document"
+    assert not any(marker_b in title for title in titles_a), (
+        f"org A retrieved org B's document: {sorted(titles_a)}"
+    )
+    assert not any(marker_a in title for title in titles_b), (
+        f"org B retrieved org A's document: {sorted(titles_b)}"
+    )
+    assert any(marker_a in title for title in titles_a), (
+        "org A must still retrieve its own probe document"
+    )
+    assert any(marker_b in title for title in titles_b), (
+        "org B must still retrieve its own probe document"
+    )
 
     chunk_ids_a = {str(result.get("chunk_id")) for result in results_a}
     chunk_ids_b = {str(result.get("chunk_id")) for result in results_b}
-    assert chunk_ids_a.isdisjoint(
-        chunk_ids_b
-    ), "the same stored chunk was visible to both organizations"
+    assert chunk_ids_a.isdisjoint(chunk_ids_b), (
+        "the same stored chunk was visible to both organizations"
+    )

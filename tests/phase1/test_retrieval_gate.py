@@ -11,17 +11,17 @@ def _retrieval_checks(path: Path) -> list[dict[str, object]]:
     payload = json.loads(path.read_text(encoding="utf-8"))
     if isinstance(payload, dict):
         payload = payload.get("checks")
-    assert isinstance(
-        payload, list
-    ), "retrieval_checks.json must be a list or an object with a 'checks' list"
+    assert isinstance(payload, list), (
+        "retrieval_checks.json must be a list or an object with a 'checks' list"
+    )
     assert len(payload) == 5, "G1.2 requires exactly five canned retrieval checks"
     for index, check in enumerate(payload):
         assert isinstance(check, dict), f"retrieval check {index} must be an object"
         assert isinstance(check.get("query"), str) and str(check["query"]).strip()
         expected = _expected_doc_ids(check)
-        assert (
-            expected
-        ), f"retrieval check {index} requires expected_doc_id or expected_doc_ids"
+        assert expected, (
+            f"retrieval check {index} requires expected_doc_id or expected_doc_ids"
+        )
         assert all(
             isinstance(doc_id, str) and doc_id.startswith("MD-IT-")
             for doc_id in expected
@@ -42,20 +42,23 @@ def _assert_citation_contract(result: dict[str, object]) -> None:
         "text",
         "score",
         "document_title",
-        "version",
+        "document_version",
         "page",
         "section",
         "chunk_id",
     }
-    assert (
-        required <= result.keys()
-    ), f"retrieval result is missing citation fields: {sorted(required - result.keys())}"
+    assert required <= result.keys(), (
+        f"retrieval result is missing citation fields: {sorted(required - result.keys())}"
+    )
     assert isinstance(result["text"], str) and result["text"].strip()
     assert isinstance(result["score"], int | float)
     assert (
         isinstance(result["document_title"], str) and result["document_title"].strip()
     )
-    assert isinstance(result["version"], str) and result["version"].strip()
+    assert (
+        isinstance(result["document_version"], str)
+        and result["document_version"].strip()
+    )
     assert isinstance(result["chunk_id"], str) and result["chunk_id"].strip()
     assert result["page"] is None or isinstance(result["page"], int)
     assert result["section"] is None or isinstance(result["section"], str)
@@ -83,9 +86,9 @@ def test_g1_2_canned_queries_return_expected_documents_in_top_three(
         for result in results:
             _assert_citation_contract(result)
         scores = [float(result["score"]) for result in results]
-        assert scores == sorted(
-            scores, reverse=True
-        ), f"results are not ranked by descending cosine similarity: {scores}"
+        assert scores == sorted(scores, reverse=True), (
+            f"results are not ranked by descending cosine similarity: {scores}"
+        )
 
         returned_titles = [str(result["document_title"]).lower() for result in results]
         expected_ids = _expected_doc_ids(check)

@@ -1,6 +1,6 @@
 # Spec: Phase 2 — Triage Agent
 
-**Status:** Draft — awaiting review
+**Status:** Approved (2026-07-28, FlowForge Code Owners)
 **Owner:** FlowForge Code Owners
 **Depends on:** 02-phase1-rag.md (approved + built)
 **Gate to exit:** Phase 2 definition of done demoed + spec review of Phase 3
@@ -69,5 +69,28 @@ Nodes: `load_ticket → retrieve_evidence → classify → ground_check → prop
 - Local model (Ollama) may struggle with strict JSON. Mitigation: repair-retry loop; keep schemas flat; validate with the dev model early — this is the point of G2.4.
 - Prompt drift across phases. Mitigation: prompts live in versioned files, `agent_version` bumps on change.
 
-## Task plan
-*(Filled after spec approval — review gate.)*
+## Key decisions (confirmed 2026-07-28 by the FlowForge Code Owners)
+
+1. **Structured output: provider-native JSON-schema mode.** Ollama's `format: <schema>` / OpenAI's `response_format: json_schema`, then Pydantic validation, then one repair retry. The provider interface gains `complete_structured(prompt, schema)` so the choice stays behind the factory (D11). Prompt-only JSON was rejected as too flaky on small local models; LangChain's `with_structured_output` was rejected as a second uncontrolled abstraction.
+2. **Deterministic graph control flow.** The fixed node list drives tool calls directly; there is no ReAct-style LLM-chooses-tools loop. Tools still pass through the registry + audit wrapper. Rationale: predictable step counts keep G2.5 (audit completeness) meaningful and make the Phase 3 durable pause tractable.
+3. **CI runs the LLM gates on a fake completion provider.** Extends `LLM_PROVIDER=fake` from D15: deterministic, schema-valid triage output derived from ticket text, plus injectable invalid output (bad enum / unparseable / zero citations) so G2.1–G2.3 prove the gates actually fail closed. Refused when `APP_ENV=prod`, exactly like fake embeddings.
+4. **Taxonomy lives in runtime code.** `backend/app/agents/taxonomy.py` is the source of truth for category / urgency / priority / team enums; a Codex-owned test asserts `fixtures/enterprise/taxonomy.json` matches it exactly. This preserves the D6 isolation guard (`backend/app/` may never import `fixtures/`) while keeping one authority and catching drift at a gate.
+5. **Two Postgres drivers, deliberately.** `langgraph-checkpoint-postgres` requires psycopg3; the application stays on asyncpg (D14). We add psycopg for the checkpointer only rather than hand-writing an asyncpg checkpointer — the durable pause (Phase 3) is the architectural centerpiece and is not the place for a bespoke persistence layer. Documented so the extra dependency is not mistaken for drift.
+6. **Dev triage model:** `TRIAGE_MODEL` config, default `llama3.1:8b` on Ollama (separate from `EMBEDDING_MODEL`). Phase 5's eval judge must be a *different* model (D5).
+
+## Task plan (approved 2026-07-28 by the FlowForge Code Owners)
+
+One atomic commit per task. **[CC]** = Claude Code, **[CX]** = Codex.
+
+1. **[CC] Taxonomy + triage schema** — `app/agents/taxonomy.py` (the four enums) and `app/agents/schema.py` (`TriageResult`, `Citation`) matching the MVP JSON exactly.
+2. **[CC] Data model** — `tickets`, `runs`, `audit_log` models + migration 0003 with working `downgrade()`.
+3. **[CC] Structured completion** — `complete_structured()` on Ollama/OpenAI providers; fake provider extended with deterministic schema-valid output + injectable failure modes.
+4. **[CC] Audit service** — one write path recording every tool call and LLM call (payload, result, latency, tokens, cost estimate); no-secrets rule enforced at the boundary.
+5. **[CC] Tool registry + read tools** — typed Pydantic args, org/user context injection, permission-check stub, audit wrapper; `search_company_knowledge` (k clamped ≤20) and `get_ticket`.
+6. **[CC] Ticket endpoints + seed loader** — `POST /api/tickets` (title ≤200, description ≤10,000), `GET /api/tickets` with filters, `GET /api/tickets/{id}`; script loading `fixtures/eval_tickets.json` with `is_eval_seed=true`.
+7. **[CC] Triage graph** — LangGraph `load_ticket → retrieve_evidence → classify → ground_check → propose`, Postgres checkpointer wired (psycopg), `agent_version` stamped on every run.
+8. **[CC] Grounding gate + repair** — zero valid citations → `failed`/`ungrounded`; schema or enum violation → one repair retry → `failed`/`schema_invalid`; `requires_approval` derived in code, never trusted from the model.
+9. **[CC] Run orchestration** — `POST /api/tickets/{id}/triage` → queued run + arq job; `GET /api/runs/{id}` (status, output, evidence, audit); per-run timeout, LLM retry/backoff, worker concurrency limit.
+10. **[CX] Gate tests** — `tests/phase2/` covering G2.1–G2.6 plus the taxonomy↔fixtures parity test.
+11. **[CX] Adversarial pass + cold diff review.**
+12. **[CC] Eval baseline + CI + docs** — run the agent over the seed set, record G2.4's number in `eval/baseline.md`, wire the Phase 2 gates into CI, update README.

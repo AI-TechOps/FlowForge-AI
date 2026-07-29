@@ -13,8 +13,9 @@ JSON-serializable for the Postgres checkpointer.
 """
 
 import logging
-from typing import Annotated, Any, TypedDict
+from typing import Any, TypedDict
 
+from langchain_core.runnables import RunnableConfig
 from langgraph.graph import END, StateGraph
 
 from app.agents import audit
@@ -47,17 +48,17 @@ class TriageState(TypedDict, total=False):
     agent_version: str
 
 
-def _context(config: dict[str, Any]) -> ToolContext:
+def _context(config: RunnableConfig) -> ToolContext:
     return config["configurable"]["tool_context"]
 
 
-async def load_ticket(state: TriageState, config: dict[str, Any]) -> TriageState:
+async def load_ticket(state: TriageState, config: RunnableConfig) -> TriageState:
     context = _context(config)
     ticket = await get_tool("get_ticket").invoke(context, {"ticket_id": state["ticket_id"]})
     return {"ticket": ticket, "agent_version": AGENT_VERSION}
 
 
-async def retrieve_evidence(state: TriageState, config: dict[str, Any]) -> TriageState:
+async def retrieve_evidence(state: TriageState, config: RunnableConfig) -> TriageState:
     context = _context(config)
     ticket = state["ticket"]
     # The ticket itself is the query; the retriever handles the semantics.
@@ -68,7 +69,7 @@ async def retrieve_evidence(state: TriageState, config: dict[str, Any]) -> Triag
     return {"evidence": evidence}
 
 
-async def classify(state: TriageState, config: dict[str, Any]) -> TriageState:
+async def classify(state: TriageState, config: RunnableConfig) -> TriageState:
     context = _context(config)
     provider = get_provider()
     schema = TriageResult.model_json_schema()
@@ -82,7 +83,6 @@ async def classify(state: TriageState, config: dict[str, Any]) -> TriageState:
             else f"{prompt}\n\n{REPAIR_PROMPT.format(error=last_error)}"
         )
         async with audit.timed(
-            context.session,
             org_id=context.org_id,
             run_id=context.run_id,
             actor="agent",
@@ -116,7 +116,7 @@ async def classify(state: TriageState, config: dict[str, Any]) -> TriageState:
     }
 
 
-async def ground_check(state: TriageState, config: dict[str, Any]) -> TriageState:
+async def ground_check(state: TriageState, config: RunnableConfig) -> TriageState:
     """Enforce the grounding rule in code (D9). No citation, no completion."""
     raw_result = state.get("result")
     if raw_result is None:
@@ -135,7 +135,7 @@ async def ground_check(state: TriageState, config: dict[str, Any]) -> TriageStat
     return {"citations": valid_citations(result, evidence)}
 
 
-async def propose(state: TriageState, config: dict[str, Any]) -> TriageState:
+async def propose(state: TriageState, config: RunnableConfig) -> TriageState:
     """Final node for Phase 2 — the proposal is recorded, nothing is executed.
 
     Phase 3 inserts the durable interrupt directly after this node.

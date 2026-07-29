@@ -10,12 +10,11 @@ redacts anything that looks like a credential before it reaches the database.
 
 import time
 import uuid
-from contextlib import asynccontextmanager
 from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from typing import Any
 
-from sqlalchemy.ext.asyncio import AsyncSession
-
+from app.db import async_session_factory
 from app.models import AuditLog
 
 SECRET_KEY_HINTS = ("api_key", "apikey", "token", "secret", "password", "authorization", "dsn")
@@ -44,7 +43,6 @@ def _scrub(value: Any, depth: int = 0) -> Any:
 
 
 async def record(
-    session: AsyncSession,
     *,
     org_id: uuid.UUID,
     run_id: uuid.UUID | None,
@@ -57,26 +55,33 @@ async def record(
     tokens_out: int | None = None,
     cost_estimate: float | None = None,
 ) -> None:
-    session.add(
-        AuditLog(
-            org_id=org_id,
-            run_id=run_id,
-            actor=actor,
-            tool=tool,
-            payload=_scrub(payload),
-            result=_scrub(result),
-            latency_ms=latency_ms,
-            tokens_in=tokens_in,
-            tokens_out=tokens_out,
-            cost_estimate=cost_estimate,
+    """Write one audit row in its own transaction.
+
+    The trail is deliberately NOT part of the caller's transaction: a run that
+    fails rolls its own work back, and the audit of *why* it failed must
+    survive that rollback. An immutable trail that disappears with the thing it
+    was recording is not a trail (G2.5).
+    """
+    async with async_session_factory() as session:
+        session.add(
+            AuditLog(
+                org_id=org_id,
+                run_id=run_id,
+                actor=actor,
+                tool=tool,
+                payload=_scrub(payload),
+                result=_scrub(result),
+                latency_ms=latency_ms,
+                tokens_in=tokens_in,
+                tokens_out=tokens_out,
+                cost_estimate=cost_estimate,
+            )
         )
-    )
-    await session.flush()
+        await session.commit()
 
 
 @asynccontextmanager
 async def timed(
-    session: AsyncSession,
     *,
     org_id: uuid.UUID,
     run_id: uuid.UUID | None,
@@ -96,7 +101,6 @@ async def timed(
         yield box
     except Exception as exc:
         await record(
-            session,
             org_id=org_id,
             run_id=run_id,
             actor=actor,
@@ -108,7 +112,6 @@ async def timed(
         raise
     else:
         await record(
-            session,
             org_id=org_id,
             run_id=run_id,
             actor=actor,

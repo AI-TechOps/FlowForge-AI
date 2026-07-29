@@ -58,7 +58,6 @@ class Tool(Generic[ArgsT]):
             self.permission_check(context, args)
 
         async with audit.timed(
-            context.session,
             org_id=context.org_id,
             run_id=context.run_id,
             actor=context.actor,

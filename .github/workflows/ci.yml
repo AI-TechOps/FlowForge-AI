@@ -159,11 +159,11 @@ jobs:
           PHASE2_COMPOSE_FILE: ${{ github.workspace }}/infra/docker-compose.yml
           PHASE2_BASE_URL: http://localhost:8000
         run: |
-          set +e
+          if [ ! -d tests/phase2 ]; then
+            echo 'Phase 2 gate tests not landed yet (Codex task 10).'
+            exit 0
+          fi
           pytest tests/phase2 -v --tb=short
-          code=$?
-          [ "$code" -eq 5 ] && { echo 'Phase 2 gate tests not landed yet (Codex task 10).'; exit 0; }
-          exit "$code"
 
       - name: Stack logs on failure
         if: failure()

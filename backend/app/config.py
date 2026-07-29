@@ -25,6 +25,11 @@ class Settings(BaseSettings):
     ollama_base_url: str = "http://localhost:11434"
     openai_api_key: str | None = None
     embedding_model: str = "nomic-embed-text"
+    # Chat model for triage. Phase 5's eval judge must differ from this (D5).
+    triage_model: str = "llama3.1:8b"
+    # Failure injection for the fake provider (dev/CI only, D16):
+    # valid | bad_enum | unparseable | no_citations.
+    fake_llm_mode: str = "valid"
     app_env: Literal["dev", "prod"] = "dev"
     upload_dir: str = "/data/uploads"
     max_upload_mb: int = 20

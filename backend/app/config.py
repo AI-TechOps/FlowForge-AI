@@ -35,6 +35,8 @@ class Settings(BaseSettings):
     max_upload_mb: int = 20
     chunk_target_tokens: int = 500
     chunk_overlap_tokens: int = 50
+    run_timeout_seconds: int = 300
+    worker_concurrency: int = 4
 
 
 @lru_cache

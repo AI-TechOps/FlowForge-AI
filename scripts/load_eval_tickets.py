@@ -22,9 +22,9 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "backend"))
 
-from app.db import async_session_factory, engine  # noqa: E402
-from app.models import Organization, Ticket, TicketStatus  # noqa: E402
-from sqlalchemy import select  # noqa: E402
+from app.db import async_session_factory, engine
+from app.models import Organization, Ticket, TicketStatus
+from sqlalchemy import select
 
 FIXTURE = REPO_ROOT / "fixtures" / "eval_tickets.json"
 
@@ -76,7 +76,9 @@ async def load(org_id: uuid.UUID | None, include_demo: bool) -> None:
 
         await session.commit()
     await engine.dispose()
-    print(f"org {org_id}: {created} created, {updated} updated ({len(records)} in fixture)")
+    print(
+        f"org {org_id}: {created} created, {updated} updated ({len(records)} in fixture)"
+    )
 
 
 if __name__ == "__main__":

@@ -81,18 +81,22 @@ jobs:
         run: pytest --tb=short
 
   integration:
-    name: phase1-gates
+    name: phase1-and-phase2-gates
     runs-on: ubuntu-latest
-    # G1.1–G1.4 are HTTP integration gates: they need the full stack
-    # (db+pgvector, redis, backend, worker), and G1.4 kills/restarts the real
-    # worker container. The fast `test` job only has Postgres, so the live
-    # gates skip there — this job actually exercises ingestion and retrieval.
+    # G1.1–G1.4 and G2.1–G2.6 are HTTP integration gates: they need the full
+    # stack (db+pgvector, redis, backend, worker), and G1.4 kills/restarts the
+    # real worker container. The fast `test` job only has Postgres, so the live
+    # gates skip there — this job actually exercises ingestion, retrieval, and
+    # triage.
     env:
       # Compose re-interpolates ${LLM_PROVIDER}/${APP_ENV} on every invocation,
       # including the worker restart the killed-worker test drives, so they must
       # live in the process env (D15: fake embeddings, refused in prod).
       LLM_PROVIDER: fake
       APP_ENV: dev
+      # Phase 2 gates flip this per-test to prove the schema/enum/grounding
+      # gates fail closed (D16 decision 3); `valid` is the default path.
+      FAKE_LLM_MODE: valid
       COMPOSE_FILE: infra/docker-compose.yml
     steps:
       - uses: actions/checkout@v4
@@ -128,6 +132,14 @@ jobs:
       - name: Run migrations
         run: docker compose -f "$COMPOSE_FILE" exec -T backend alembic upgrade head
 
+      - name: Seed demo org and eval tickets
+        env:
+          DATABASE_URL: postgresql+asyncpg://flowforge:flowforge@localhost:5432/flowforge
+          REDIS_URL: redis://localhost:6379/0
+        run: |
+          python scripts/seed.py
+          python scripts/load_eval_tickets.py
+
       - name: Run Phase 1 gates (G1.1–G1.4)
         env:
           PHASE1_REQUIRE_LIVE: "1"
@@ -136,6 +148,22 @@ jobs:
           PHASE1_COMPOSE_FILE: ${{ github.workspace }}/infra/docker-compose.yml
           PHASE1_BASE_URL: http://localhost:8000
         run: pytest tests/phase1 -v --tb=short
+
+      # Phase 2 gate tests are Codex's task 10; this step runs them once they
+      # land and is a no-op (exit 5 = nothing collected) until then.
+      - name: Run Phase 2 gates (G2.1–G2.6)
+        env:
+          PHASE2_REQUIRE_LIVE: "1"
+          PHASE2_MANAGE_WORKER: "1"
+          PHASE2_DATABASE_URL: postgresql+asyncpg://flowforge:flowforge@localhost:5432/flowforge
+          PHASE2_COMPOSE_FILE: ${{ github.workspace }}/infra/docker-compose.yml
+          PHASE2_BASE_URL: http://localhost:8000
+        run: |
+          set +e
+          pytest tests/phase2 -v --tb=short
+          code=$?
+          [ "$code" -eq 5 ] && { echo 'Phase 2 gate tests not landed yet (Codex task 10).'; exit 0; }
+          exit "$code"
 
       - name: Stack logs on failure
         if: failure()

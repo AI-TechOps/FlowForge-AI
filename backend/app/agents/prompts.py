@@ -27,9 +27,7 @@ def _values(enum_class: type) -> str:
     return ", ".join(member.value for member in enum_class)
 
 
-def build_triage_prompt(
-    ticket: dict[str, object], evidence: list[dict[str, object]]
-) -> str:
+def build_triage_prompt(ticket: dict[str, object], evidence: list[dict[str, object]]) -> str:
     evidence_block = (
         "\n\n".join(_format_chunk(index, chunk) for index, chunk in enumerate(evidence, start=1))
         if evidence

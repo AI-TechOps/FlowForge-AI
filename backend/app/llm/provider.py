@@ -280,9 +280,7 @@ def _pick(options: list[Any], seed: str, salt: str) -> Any:
     return options[int.from_bytes(digest[:4], "big") % len(options)]
 
 
-def _fake_value(
-    schema: dict[str, Any], prompt: str, seed: str, mode: str, field: str = ""
-) -> Any:
+def _fake_value(schema: dict[str, Any], prompt: str, seed: str, mode: str, field: str = "") -> Any:
     """Build a deterministic value satisfying `schema`.
 
     Handles the shapes the triage schema actually uses (enums, bounded strings
@@ -370,6 +368,4 @@ def get_provider(settings: Settings | None = None) -> LLMProvider:
         if settings.app_env == "prod":
             raise ValueError("LLM_PROVIDER=fake is for dev/CI only, never prod.")
         return FakeProvider(settings.embedding_model, settings.fake_llm_mode)
-    return OllamaProvider(
-        settings.ollama_base_url, settings.embedding_model, settings.triage_model
-    )
+    return OllamaProvider(settings.ollama_base_url, settings.embedding_model, settings.triage_model)

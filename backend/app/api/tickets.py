@@ -72,9 +72,7 @@ async def list_tickets(
     if is_eval_seed is not None:
         statement = statement.where(Ticket.is_eval_seed == is_eval_seed)
 
-    tickets = (
-        await session.execute(statement.order_by(Ticket.created_at.desc()))
-    ).scalars().all()
+    tickets = (await session.execute(statement.order_by(Ticket.created_at.desc()))).scalars().all()
     return [ticket_payload(ticket) for ticket in tickets]
 
 

@@ -65,9 +65,7 @@ async def list_runs(
         statement = statement.where(Run.status == status)
     if ticket_id is not None:
         statement = statement.where(Run.ticket_id == ticket_id)
-    runs = (
-        (await session.execute(statement.order_by(Run.created_at.desc()))).scalars().all()
-    )
+    runs = (await session.execute(statement.order_by(Run.created_at.desc()))).scalars().all()
     return [_run_summary(run) for run in runs]
 
 

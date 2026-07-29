@@ -10,8 +10,8 @@ while the application runs on asyncpg. Two drivers against one database is a
 deliberate, documented trade — not drift.
 """
 
-from contextlib import asynccontextmanager
 from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 

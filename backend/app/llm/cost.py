@@ -18,6 +18,4 @@ def estimate_cost(model: str, tokens_in: int | None, tokens_out: int | None) -> 
         # Ollama tags look like "llama3.1:8b"; fake is prefixed. Both are free.
         return 0.0
     price_in, price_out = PRICING.get(model, (0.0, 0.0))
-    return round(
-        ((tokens_in or 0) * price_in + (tokens_out or 0) * price_out) / 1_000_000, 6
-    )
+    return round(((tokens_in or 0) * price_in + (tokens_out or 0) * price_out) / 1_000_000, 6)

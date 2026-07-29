@@ -63,9 +63,7 @@ async def retrieve_evidence(state: TriageState, config: RunnableConfig) -> Triag
     ticket = state["ticket"]
     # The ticket itself is the query; the retriever handles the semantics.
     query = f"{ticket.get('title', '')}\n{ticket.get('description', '')}".strip()
-    evidence = await get_tool("search_company_knowledge").invoke(
-        context, {"query": query, "k": 5}
-    )
+    evidence = await get_tool("search_company_knowledge").invoke(context, {"query": query, "k": 5})
     return {"evidence": evidence}
 
 

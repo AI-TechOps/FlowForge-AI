@@ -40,9 +40,7 @@ async def execute_run(ctx: dict[str, Any], run_id: str, org_id: str) -> str:
         run.agent_version = AGENT_VERSION
         await session.commit()
 
-        context = ToolContext(
-            session=session, org_id=org_uuid, run_id=run_uuid, actor="agent"
-        )
+        context = ToolContext(session=session, org_id=org_uuid, run_id=run_uuid, actor="agent")
         try:
             async with checkpointer() as saver:
                 graph = build_graph(saver)
@@ -83,9 +81,7 @@ async def _finalize(session: Any, run: Run, state: dict[str, Any]) -> str:
     if result is None:
         # Defensive: a graph path that produced neither result nor reason is a
         # bug, and a run must never report success without output.
-        return await _fail(
-            session, run, FailureReason.internal_error, "graph produced no result"
-        )
+        return await _fail(session, run, FailureReason.internal_error, "graph produced no result")
 
     run.status = RunStatus.completed
     run.output = result

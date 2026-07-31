@@ -95,7 +95,7 @@ async def get_run(
         **_run_summary(run),
         "output": run.output,
         "evidence": run.evidence or [],
-        "audit": [
+        "audit_entries": [
             {
                 "actor": entry.actor,
                 "tool": entry.tool,

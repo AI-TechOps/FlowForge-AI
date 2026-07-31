@@ -120,8 +120,10 @@ as a background job. Two rules are enforced in code, not in the prompt:
   `schema_invalid`. Classification values outside the taxonomy are a validation error.
 
 `FAKE_LLM_MODE` (`valid` | `bad_enum` | `unparseable` | `no_citations`) injects bad model
-output so those gates can be shown to fail closed. It only applies to `LLM_PROVIDER=fake`,
-which the provider factory refuses when `APP_ENV=prod`.
+output so those gates can be shown to fail closed. For a single run, put
+`[[FLOWFORGE_FAKE_COMPLETION:bad_enum:category]]` in the ticket description instead —
+same modes, one call only, with an optional field to corrupt. Both only apply to
+`LLM_PROVIDER=fake`, which the provider factory refuses when `APP_ENV=prod`.
 
 Triage quality is tracked in [`eval/baseline.md`](eval/baseline.md) — run
 `python scripts/eval_baseline.py` against a **real** model (the fake provider's accuracy

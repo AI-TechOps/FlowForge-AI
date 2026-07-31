@@ -21,6 +21,14 @@ UUID_PATTERN = re.compile(
     r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", re.IGNORECASE
 )
 
+# Per-call fault injection for the fake provider (see FakeProvider.mode). The
+# directive travels inside the prompt so a gate test can request a specific
+# failure through the public API — create a ticket, trigger triage — without
+# reaching into server config. Honoured ONLY by the fake provider.
+FAKE_DIRECTIVE_PATTERN = re.compile(
+    r"\[\[FLOWFORGE_FAKE_COMPLETION:([a-z_]+)(?::([a-z_]+))?\]\]", re.IGNORECASE
+)
+
 
 @dataclass(frozen=True)
 class StructuredCompletion:
@@ -205,6 +213,8 @@ class FakeProvider(LLMProvider):
         self.embedding_model = f"fake:{embedding_model}"
         # Failure injection for the gates (D16): the schema/enum/grounding
         # gates must be shown to FAIL CLOSED, not merely to pass when happy.
+        # This is the process-wide default; a prompt-borne directive overrides
+        # it per call so one stack can serve both the happy and failing gates.
         self.mode = mode
 
     async def complete(self, prompt: str) -> str:
@@ -224,18 +234,34 @@ class FakeProvider(LLMProvider):
         knowledge base naturally yields zero citations and the grounding gate
         fires (G2.2) without any special-casing.
         """
-        if self.mode == "unparseable":
-            return self._result("not json at all {", prompt)
+        mode, target_field = self._injected_mode(prompt)
+        if mode == "unparseable":
+            return self._result("not json at all {", prompt, mode)
         resolved = _resolve_refs(schema, schema)
-        value = _fake_value(resolved, prompt, seed=prompt, mode=self.mode)
-        return self._result(json.dumps(value), prompt)
+        value = _fake_value(
+            resolved, prompt, seed=prompt, mode=mode, bad_enum_field=target_field
+        )
+        return self._result(json.dumps(value), prompt, mode)
 
-    def _result(self, raw: str, prompt: str) -> StructuredCompletion:
+    def _injected_mode(self, prompt: str) -> tuple[str, str | None]:
+        """Resolve this call's failure mode: prompt directive beats config.
+
+        The gates drive triage through the HTTP API, where the only channel
+        into the model is the ticket text — so the directive rides in with it.
+        """
+        match = FAKE_DIRECTIVE_PATTERN.search(prompt)
+        if match is None:
+            return self.mode, None
+        mode = match.group(1).lower()
+        field = match.group(2)
+        return mode, field.lower() if field else None
+
+    def _result(self, raw: str, prompt: str, mode: str) -> StructuredCompletion:
         return StructuredCompletion(
             raw=raw,
             tokens_in=len(prompt.split()),
             tokens_out=len(raw.split()),
-            model=f"fake:{self.mode}",
+            model=f"fake:{mode}",
         )
 
     async def embed(self, texts: list[str]) -> list[list[float]]:
@@ -280,20 +306,33 @@ def _pick(options: list[Any], seed: str, salt: str) -> Any:
     return options[int.from_bytes(digest[:4], "big") % len(options)]
 
 
-def _fake_value(schema: dict[str, Any], prompt: str, seed: str, mode: str, field: str = "") -> Any:
+def _fake_value(
+    schema: dict[str, Any],
+    prompt: str,
+    seed: str,
+    mode: str,
+    field: str = "",
+    bad_enum_field: str | None = None,
+) -> Any:
     """Build a deterministic value satisfying `schema`.
 
     Handles the shapes the triage schema actually uses (enums, bounded strings
     and numbers, booleans, arrays of objects). It is not a general JSON Schema
     generator and does not pretend to be.
+
+    `bad_enum_field` narrows `mode="bad_enum"` to a single field, so a gate can
+    prove that each taxonomy field is validated on its own rather than relying
+    on one blanket corruption.
     """
     if "anyOf" in schema:
         # Optional fields (T | None): take the first non-null branch.
         branches = [b for b in schema["anyOf"] if b.get("type") != "null"]
-        return _fake_value(branches[0], prompt, seed, mode, field) if branches else None
+        if not branches:
+            return None
+        return _fake_value(branches[0], prompt, seed, mode, field, bad_enum_field)
 
     if "enum" in schema:
-        if mode == "bad_enum":
+        if mode == "bad_enum" and bad_enum_field in (None, field):
             return "definitely_not_a_valid_enum_member"
         return _pick(list(schema["enum"]), seed, field)
 
@@ -302,7 +341,7 @@ def _fake_value(schema: dict[str, Any], prompt: str, seed: str, mode: str, field
     if node_type == "object":
         properties: dict[str, Any] = schema.get("properties", {})
         return {
-            name: _fake_value(sub, prompt, seed, mode, field=name)
+            name: _fake_value(sub, prompt, seed, mode, name, bad_enum_field)
             for name, sub in properties.items()
         }
 
@@ -313,7 +352,7 @@ def _fake_value(schema: dict[str, Any], prompt: str, seed: str, mode: str, field
             # Ground the answer in chunk ids actually present in the prompt.
             chunk_ids = list(dict.fromkeys(UUID_PATTERN.findall(prompt)))[:2]
             return [
-                _citation(chunk_id, schema.get("items", {}), prompt, seed, mode)
+                _citation(chunk_id, schema.get("items", {}), prompt, seed, mode, bad_enum_field)
                 for chunk_id in chunk_ids
             ]
         return []
@@ -338,9 +377,21 @@ def _fake_value(schema: dict[str, Any], prompt: str, seed: str, mode: str, field
 
 
 def _citation(
-    chunk_id: str, item_schema: dict[str, Any], prompt: str, seed: str, mode: str
+    chunk_id: str,
+    item_schema: dict[str, Any],
+    prompt: str,
+    seed: str,
+    mode: str,
+    bad_enum_field: str | None = None,
 ) -> dict[str, Any]:
-    citation = _fake_value(item_schema, prompt, seed=chunk_id, mode=mode, field="citation")
+    citation = _fake_value(
+        item_schema,
+        prompt,
+        seed=chunk_id,
+        mode=mode,
+        field="citation",
+        bad_enum_field=bad_enum_field,
+    )
     if isinstance(citation, dict):
         citation["chunk_id"] = chunk_id
     return citation

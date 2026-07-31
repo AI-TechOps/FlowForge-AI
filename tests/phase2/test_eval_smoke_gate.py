@@ -2,11 +2,31 @@ from __future__ import annotations
 
 import importlib
 import json
+import os
 import sys
 from collections.abc import Callable
 from pathlib import Path
 
+import pytest
 from conftest import Phase2Client, triage_and_wait
+
+
+def _require_real_triage_model() -> None:
+    """G2.4 is the one gate that measures answer quality, not plumbing.
+
+    The fake provider classifies by hashing token content (D16 decision 3), so
+    its accuracy is noise by construction — scoring it would produce a number
+    that means nothing and a red gate that signals nothing. The rest of the
+    Phase 2 gates run on it precisely because they test plumbing.
+    """
+    provider = os.environ.get("LLM_PROVIDER", "").strip().lower()
+    if provider not in {"ollama", "openai"}:
+        pytest.skip(
+            "G2.4 needs a real triage model; the stack under test reports "
+            f"LLM_PROVIDER={provider or '(unset)'}. Run against an Ollama- or "
+            "OpenAI-backed stack with LLM_PROVIDER set to match, then record the "
+            "number in eval/baseline.md."
+        )
 
 
 def test_g2_4_seed_set_category_accuracy_is_at_least_seventy_percent(
@@ -17,6 +37,7 @@ def test_g2_4_seed_set_category_accuracy_is_at_least_seventy_percent(
     record_property: Callable[[str, object], None],
 ) -> None:
     del corpus_ready
+    _require_real_triage_model()
     fixture_path = repository_root / "fixtures" / "eval_tickets.json"
     payload = json.loads(fixture_path.read_text(encoding="utf-8"))
     tickets = payload.get("eval_tickets")

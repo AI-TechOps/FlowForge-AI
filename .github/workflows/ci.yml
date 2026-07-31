@@ -149,8 +149,9 @@ jobs:
           PHASE1_BASE_URL: http://localhost:8000
         run: pytest tests/phase1 -v --tb=short
 
-      # Phase 2 gate tests are Codex's task 10; this step runs them once they
-      # land and is a no-op (exit 5 = nothing collected) until then.
+      # G2.4 (seed-set accuracy) skips here by design: LLM_PROVIDER=fake
+      # classifies by hashing, so its accuracy is noise. It is measured against
+      # a real model and recorded in eval/baseline.md.
       - name: Run Phase 2 gates (G2.1–G2.6)
         env:
           PHASE2_REQUIRE_LIVE: "1"
@@ -158,12 +159,7 @@ jobs:
           PHASE2_DATABASE_URL: postgresql+asyncpg://flowforge:flowforge@localhost:5432/flowforge
           PHASE2_COMPOSE_FILE: ${{ github.workspace }}/infra/docker-compose.yml
           PHASE2_BASE_URL: http://localhost:8000
-        run: |
-          if [ ! -d tests/phase2 ]; then
-            echo 'Phase 2 gate tests not landed yet (Codex task 10).'
-            exit 0
-          fi
-          pytest tests/phase2 -v --tb=short
+        run: pytest tests/phase2 -v --tb=short
 
       - name: Stack logs on failure
         if: failure()

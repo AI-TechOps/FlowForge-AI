@@ -240,7 +240,9 @@ def llm_audit_entries(entries: list[dict[str, object]]) -> list[dict[str, object
 
 
 def assert_failure_reason(run: dict[str, object], expected: str) -> None:
-    error = run.get("error", run.get("failure_reason"))
+    # The typed reason is its own field; `error` carries the human-readable
+    # detail and is only consulted when a run reports no typed reason at all.
+    error = run.get("failure_reason") or run.get("error")
     if isinstance(error, dict):
         error = error.get("reason", error.get("code", error.get("message")))
     assert isinstance(error, str) and expected in error.lower(), (

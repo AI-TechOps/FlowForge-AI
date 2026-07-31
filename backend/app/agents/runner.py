@@ -71,11 +71,16 @@ async def execute_run(ctx: dict[str, Any], run_id: str, org_id: str) -> str:
 
 
 async def _finalize(session: Any, run: Run, state: dict[str, Any]) -> str:
-    run.evidence = state.get("evidence")
+    evidence = state.get("evidence")
 
     reason = state.get("failure_reason")
     if reason is not None:
-        return await _fail(session, run, FailureReason(reason), state.get("error"))
+        # A failed run keeps what it retrieved: "the model cited nothing from
+        # these five chunks" is the whole diagnosis, and it is gone if the
+        # evidence dies with the rollback.
+        return await _fail(session, run, FailureReason(reason), state.get("error"), evidence)
+
+    run.evidence = evidence
 
     result = state.get("result")
     if result is None:
@@ -96,9 +101,19 @@ async def _finalize(session: Any, run: Run, state: dict[str, Any]) -> str:
     return RunStatus.completed.value
 
 
-async def _fail(session: Any, run: Run, reason: FailureReason, error: str | None) -> str:
+async def _fail(
+    session: Any,
+    run: Run,
+    reason: FailureReason,
+    error: str | None,
+    evidence: list[dict[str, Any]] | None = None,
+) -> str:
+    # The rollback discards whatever the run wrote before it failed, so
+    # anything worth keeping is re-applied after the merge below.
     await session.rollback()
     run = await session.merge(run)
+    if evidence is not None:
+        run.evidence = evidence
     run.status = RunStatus.failed
     run.failure_reason = reason
     run.error = (error or "")[:2000]

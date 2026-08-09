@@ -14,7 +14,7 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import Any, Generic, TypeVar
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents import audit
@@ -90,8 +90,20 @@ def _summarize(result: Any) -> Any:
 
 class SearchArgs(BaseModel):
     query: str = Field(min_length=1, max_length=2000)
-    # Clamped server-side regardless of what the model asks for (spec 03 §4).
-    k: int = Field(default=5, ge=1, le=MAX_K)
+    k: int = 5
+
+    @field_validator("k")
+    @classmethod
+    def _clamp_k(cls, value: int) -> int:
+        """Clamp, don't reject (spec 03 §4).
+
+        `le=MAX_K` made an over-large k a validation error. The spec says k is
+        clamped server-side "regardless of what the model asks for" — a model
+        asking for 100 should get 20, not blow up the run (Codex Phase 2
+        finding 6). The deterministic graph always passes 5, so this is about
+        the tool contract Phase 3 reuses.
+        """
+        return max(1, min(value, MAX_K))
 
 
 async def _search_company_knowledge(context: ToolContext, args: SearchArgs) -> list[dict[str, Any]]:

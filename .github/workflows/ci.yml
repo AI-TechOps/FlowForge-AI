@@ -54,8 +54,10 @@ jobs:
       # Scratch DB for the migration upgrade→downgrade→upgrade gate; the
       # runner script refuses any database whose name lacks a scratch marker.
       MIGRATION_TEST_DATABASE_URL: postgresql+asyncpg://flowforge:flowforge@localhost:5432/flowforge_scratch
-      # Required by app settings at import time (seed-script gate); nothing
-      # in the test job actually connects to Redis.
+      # Both are required by app settings at import time: app/db.py builds the
+      # engine on import, so any test that imports app/ needs them present even
+      # though nothing in this job connects to Postgres-via-app or to Redis.
+      DATABASE_URL: postgresql+asyncpg://flowforge:flowforge@localhost:5432/flowforge_scratch
       REDIS_URL: redis://localhost:6379/0
       # Phase 1 gates embed without Ollama via the deterministic fake
       # provider (D15). Refused when APP_ENV=prod; CI runs as dev.
@@ -81,18 +83,22 @@ jobs:
         run: pytest --tb=short
 
   integration:
-    name: phase1-gates
+    name: phase1-and-phase2-gates
     runs-on: ubuntu-latest
-    # G1.1–G1.4 are HTTP integration gates: they need the full stack
-    # (db+pgvector, redis, backend, worker), and G1.4 kills/restarts the real
-    # worker container. The fast `test` job only has Postgres, so the live
-    # gates skip there — this job actually exercises ingestion and retrieval.
+    # G1.1–G1.4 and G2.1–G2.6 are HTTP integration gates: they need the full
+    # stack (db+pgvector, redis, backend, worker), and G1.4 kills/restarts the
+    # real worker container. The fast `test` job only has Postgres, so the live
+    # gates skip there — this job actually exercises ingestion, retrieval, and
+    # triage.
     env:
       # Compose re-interpolates ${LLM_PROVIDER}/${APP_ENV} on every invocation,
       # including the worker restart the killed-worker test drives, so they must
       # live in the process env (D15: fake embeddings, refused in prod).
       LLM_PROVIDER: fake
       APP_ENV: dev
+      # Phase 2 gates flip this per-test to prove the schema/enum/grounding
+      # gates fail closed (D16 decision 3); `valid` is the default path.
+      FAKE_LLM_MODE: valid
       COMPOSE_FILE: infra/docker-compose.yml
     steps:
       - uses: actions/checkout@v4
@@ -128,6 +134,14 @@ jobs:
       - name: Run migrations
         run: docker compose -f "$COMPOSE_FILE" exec -T backend alembic upgrade head
 
+      - name: Seed demo org and eval tickets
+        env:
+          DATABASE_URL: postgresql+asyncpg://flowforge:flowforge@localhost:5432/flowforge
+          REDIS_URL: redis://localhost:6379/0
+        run: |
+          python scripts/seed.py
+          python scripts/load_eval_tickets.py
+
       - name: Run Phase 1 gates (G1.1–G1.4)
         env:
           PHASE1_REQUIRE_LIVE: "1"
@@ -136,6 +150,34 @@ jobs:
           PHASE1_COMPOSE_FILE: ${{ github.workspace }}/infra/docker-compose.yml
           PHASE1_BASE_URL: http://localhost:8000
         run: pytest tests/phase1 -v --tb=short
+
+      # G2.4 (seed-set accuracy) skips here by design: it is opt-in via
+      # PHASE2_RUN_EVAL and refuses to score the fake provider, whose accuracy
+      # is noise. It is measured against a real model and recorded in
+      # eval/baseline.md.
+      - name: Run Phase 2 gates (G2.1–G2.6)
+        env:
+          PHASE2_REQUIRE_LIVE: "1"
+          PHASE2_MANAGE_WORKER: "1"
+          PHASE2_DATABASE_URL: postgresql+asyncpg://flowforge:flowforge@localhost:5432/flowforge
+          PHASE2_COMPOSE_FILE: ${{ github.workspace }}/infra/docker-compose.yml
+          PHASE2_BASE_URL: http://localhost:8000
+        run: pytest tests/phase2 -v --tb=short
+
+      # Codex's adversarial probes. Several drive the live stack (credential
+      # handling, cross-tenant run detail, rollback behaviour), so they belong
+      # here rather than in the Postgres-only fast job.
+      - name: Run adversarial probes
+        env:
+          PHASE2_REQUIRE_LIVE: "1"
+          PHASE2_DATABASE_URL: postgresql+asyncpg://flowforge:flowforge@localhost:5432/flowforge
+          PHASE2_BASE_URL: http://localhost:8000
+          # Several probes import app/ directly (audit scrubber, tool clamping,
+          # transport retry). app/db.py constructs the engine at import time, so
+          # settings must resolve even for probes that never open a connection.
+          DATABASE_URL: postgresql+asyncpg://flowforge:flowforge@localhost:5432/flowforge
+          REDIS_URL: redis://localhost:6379/0
+        run: pytest tests/adversarial -v --tb=short
 
       - name: Stack logs on failure
         if: failure()
@@ -158,4 +200,6 @@ jobs:
       - name: Scan for committed secrets
         run: |
           curl -sSfL https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz | tar -xz gitleaks
-          ./gitleaks git --no-banner --redact .
+          # --config is explicit: .gitleaks.toml allowlists the synthetic
+          # credential markers the adversarial probes must contain.
+          ./gitleaks git --no-banner --redact --config .gitleaks.toml .

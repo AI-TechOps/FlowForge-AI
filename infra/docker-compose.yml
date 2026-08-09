@@ -38,6 +38,8 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       EMBEDDING_MODEL: ${EMBEDDING_MODEL:-nomic-embed-text}
       APP_ENV: ${APP_ENV:-dev}
+      TRIAGE_MODEL: ${TRIAGE_MODEL:-llama3.1:8b}
+      FAKE_LLM_MODE: ${FAKE_LLM_MODE:-valid}
       UPLOAD_DIR: /data/uploads
     volumes:
       - uploads:/data/uploads
@@ -60,6 +62,8 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       EMBEDDING_MODEL: ${EMBEDDING_MODEL:-nomic-embed-text}
       APP_ENV: ${APP_ENV:-dev}
+      TRIAGE_MODEL: ${TRIAGE_MODEL:-llama3.1:8b}
+      FAKE_LLM_MODE: ${FAKE_LLM_MODE:-valid}
       UPLOAD_DIR: /data/uploads
     volumes:
       - uploads:/data/uploads

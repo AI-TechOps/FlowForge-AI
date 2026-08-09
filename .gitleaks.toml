@@ -1,0 +1,24 @@
+# Gitleaks configuration for FlowForge-AI.
+#
+# Starts from the upstream default ruleset and adds one narrow exemption.
+# Nothing here weakens detection of real credentials: no path is blanket
+# allowlisted, so an actual key committed under tests/ is still caught.
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Synthetic credential markers used by the adversarial probes"
+# `tests/adversarial/test_phase2_boundaries.py` pastes a fake credential into
+# ticket text and then asserts the audit trail never echoes it back. The marker
+# must be a long, unmistakable, greppable string — exactly the shape gitleaks'
+# generic-api-key rule hunts for, so the probe trips the scanner on the very
+# string it exists to detect.
+#
+# Exempting an explicit `ff_adversarial_secret_` prefix rather than a path keeps
+# the hole the size of the convention: only strings we deliberately named as
+# test markers are ignored, and a real key committed anywhere still fails.
+regexTarget = "match"
+regexes = [
+  '''ff_adversarial_secret_[0-9a-f]+''',
+]

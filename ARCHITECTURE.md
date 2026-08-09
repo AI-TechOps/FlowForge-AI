@@ -176,3 +176,51 @@ Run status lifecycle: `queued → running → awaiting_approval → executing �
 - **Write-tool contract:** org context, user context, typed args, permission check, idempotency key, timeout, audit record, retry policy, mock implementation, post-execution confirmation.
 - **Observability:** every run and every tool call logged (inputs, outputs, latency, tokens, cost).
 - **Provider abstraction:** only `backend/app/llm/provider.py` knows which LLM/embedding provider is active.
+
+---
+
+## Production hardening (deferred, tracked)
+
+Things the MVP deliberately does not do. Each is a conscious deferral, not an
+oversight — recorded here so they are found on purpose rather than in an
+incident.
+
+| Item | MVP behaviour | Hardening step |
+|---|---|---|
+| Vector search | Exact sequential scan over the org's chunks | HNSW index (below) |
+| Tenant isolation | Application-level `org_id` filtering | Postgres RLS (D7, spec 05 §3) |
+| Audit payloads | Credential-bearing *keys* redacted | Value-level scanning of user-supplied text (spec 03 §1) |
+| Eval judge | Same provider family as triage | A genuinely different model (D5) |
+
+### HNSW index on `chunks.embedding`
+
+`chunks.embedding` carries no ANN index today — only btree on `id`,
+`document_id`, `org_id` — so every retrieval is an exact scan. At demo scale
+(~10² chunks per org) that is both fast and *more* accurate than approximate
+search, and it avoids index build time and recall tuning. It does not survive
+production volume.
+
+```sql
+CREATE INDEX CONCURRENTLY ix_chunks_embedding_hnsw
+    ON chunks USING hnsw (embedding vector_cosine_ops)
+    WITH (m = 16, ef_construction = 64);
+```
+
+Three things to get right when this lands:
+
+- **Match the operator class to the query.** Retrieval uses cosine distance
+  (`backend/app/rag/retrieve.py`), so the index must be `vector_cosine_ops`. A
+  mismatched op class is silently ignored and the scan stays sequential.
+- **Filtered recall is the real trap.** Every query filters by `org_id` first,
+  and an HNSW scan that post-filters can return fewer than `k` rows — or miss
+  the best ones — for a small tenant inside a large table. pgvector 0.8 (0.8.5
+  is what we run) added iterative index scans for exactly this; enable
+  `hnsw.iterative_scan` rather than assuming the plain index is correct under a
+  filter.
+- **Re-index on any embedding change.** Model or dimension changes invalidate
+  both the vectors and the index; `chunks.embedding_model` exists to make that
+  detectable.
+
+Worth measuring before adopting: below roughly 10⁴–10⁵ chunks per org the exact
+scan is usually the better answer, so this should be driven by a benchmark on
+real volume rather than by default.

@@ -16,6 +16,12 @@ dependencies = [
     "arq>=0.26",
     "python-multipart>=0.0.18",
     "pypdf>=5.1",
+    "langgraph>=1.0",
+    # Requires psycopg3 while the app runs on asyncpg (D16 decision 5):
+    # two drivers, deliberately — the checkpointer is not the place for a
+    # bespoke persistence layer.
+    "langgraph-checkpoint-postgres>=3.0",
+    "psycopg[binary,pool]>=3.2",
 ]
 
 [project.optional-dependencies]

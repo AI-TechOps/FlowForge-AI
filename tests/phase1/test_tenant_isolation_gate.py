@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from uuid import uuid4
 
-from conftest import (
+from .conftest import (
     Phase1Client,
     document_id_from,
     response_detail,

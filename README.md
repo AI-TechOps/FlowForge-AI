@@ -94,6 +94,41 @@ curl -X POST localhost:8000/api/retrieve \
 
 Ingestion runs on the `worker` compose service (arq + Redis). Files are stored under the `uploads` volume at `/data/uploads/{org_id}/{doc_id}`.
 
+## Triage agent (Phase 2)
+
+```bash
+# Load the labeled eval seed set (20 tickets; idempotent)
+python scripts/load_eval_tickets.py
+
+# File a ticket, then triage it
+TICKET=$(curl -s -X POST localhost:8000/api/tickets -H 'Content-Type: application/json' \
+  -d '{"title":"Cannot connect to VPN","description":"Times out from home.","service":"MeridianConnect VPN"}' \
+  | python -c 'import json,sys; print(json.load(sys.stdin)["id"])')
+RUN=$(curl -s -X POST localhost:8000/api/tickets/$TICKET/triage \
+  | python -c 'import json,sys; print(json.load(sys.stdin)["id"])')
+
+# Run detail: structured output, evidence, and the full audit trail
+curl -s localhost:8000/api/runs/$RUN | python -m json.tool
+```
+
+The graph runs `load_ticket → retrieve_evidence → classify → ground_check → propose`
+as a background job. Two rules are enforced in code, not in the prompt:
+
+- **Grounding** — a run whose citations don't reference chunks it actually retrieved
+  fails as `ungrounded`; it never reports `completed`.
+- **Schema/enum** — output that doesn't validate gets one repair retry, then fails as
+  `schema_invalid`. Classification values outside the taxonomy are a validation error.
+
+`FAKE_LLM_MODE` (`valid` | `bad_enum` | `unparseable` | `no_citations`) injects bad model
+output so those gates can be shown to fail closed. For a single run, put
+`[[FLOWFORGE_FAKE_COMPLETION:bad_enum:category]]` in the ticket description instead —
+same modes, one call only, with an optional field to corrupt. Both only apply to
+`LLM_PROVIDER=fake`, which the provider factory refuses when `APP_ENV=prod`.
+
+Triage quality is tracked in [`eval/baseline.md`](eval/baseline.md) — run
+`python scripts/eval_baseline.py` against a **real** model (the fake provider's accuracy
+is noise by design).
+
 ## Phase 0 definition-of-done walkthrough
 
 1. `docker compose -f infra/docker-compose.yml up --build` — all four services start; db and redis have healthchecks, backend waits for both.

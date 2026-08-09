@@ -73,9 +73,24 @@ def test_migrated_schema_contains_only_the_expected_domain_tables(
         ORDER BY table_name;
         """,
     )
-    # Head is 0002: Phase 1 (spec 02, task 1) adds documents + chunks alongside
-    # the Phase 0 tenant tables. The gate still guards against stray tables.
-    assert tables == ["chunks", "documents", "organizations", "user_roles", "users"]
+    # Head is 0003. The list is the union of every approved spec's tables:
+    # Phase 0 tenancy (organizations/users/user_roles), Phase 1 RAG
+    # (documents/chunks, spec 02 task 1), Phase 2 triage (tickets/runs/
+    # audit_log, spec 03 task 2).
+    #
+    # Deliberately an exact list, not a subset check: a table nobody approved
+    # is exactly what this gate exists to catch, so each phase that adds one
+    # has to say so here. Phase 3 adds `approvals`.
+    assert tables == [
+        "audit_log",
+        "chunks",
+        "documents",
+        "organizations",
+        "runs",
+        "tickets",
+        "user_roles",
+        "users",
+    ]
 
 
 def test_users_schema_has_tenant_link_and_never_stores_passwords(

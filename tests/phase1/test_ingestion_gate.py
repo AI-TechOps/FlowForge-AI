@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from conftest import (
+from .conftest import (
     Phase1Client,
     documents_from,
     locate_corpus_paths,

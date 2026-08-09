@@ -167,10 +167,26 @@ The 12-task plan lives in `specs/02-phase1-rag.md`; tasks 9–10 are Codex's (fi
 
 ---
 
-## Open items (as of 2026-07-20)
+## D16 — Phase 2 review gate resolved (2026-07-28)
 
-- **Build Phase 1** on `feat/phase1-rag`: tasks 1–8 and 11 (Claude), 9–10 (Codex), G1.5 label review (code owners).
-- **Phase 2 spec review:** next review gate after Phase 1 is built.
+Phase 1 is built and merged (PR #7). The Phase 2 spec is **Approved** with six decisions:
+
+1. **Structured output: provider-native JSON-schema mode** (Ollama `format`, OpenAI `response_format`) + Pydantic validation + one repair retry, behind a new `complete_structured()` on the provider interface so D11's model-agnosticism holds. Prompt-only JSON is too flaky on small local models; LangChain's `with_structured_output` would add a second abstraction we don't control.
+2. **Deterministic graph control flow** — the fixed node list calls tools directly; no ReAct loop. Predictable step counts keep G2.5 audit-completeness meaningful and make the Phase 3 durable pause tractable. Tools still go through the registry + audit wrapper.
+3. **Fake completion provider for CI**, extending D15: deterministic schema-valid output plus injectable invalid output so the schema/enum/grounding gates prove they fail closed. Prod-refused.
+4. **Taxonomy lives in `backend/app/agents/taxonomy.py`**, with a Codex-owned parity test against `fixtures/enterprise/taxonomy.json`. This resolves a real conflict: the D6 CI guard forbids `backend/app/` importing `fixtures/`, so the enums cannot live only in the fixture. One authority, drift caught by a gate.
+5. **Two Postgres drivers, deliberately.** `langgraph-checkpoint-postgres` requires psycopg3 while the app stays on asyncpg (D14). We accept the second driver rather than hand-write an asyncpg checkpointer — the durable pause is the architectural centerpiece and not the place for bespoke persistence.
+6. **Dev triage model:** `TRIAGE_MODEL`, default `llama3.1:8b`, separate from `EMBEDDING_MODEL`. Phase 5's eval judge must differ from it (D5).
+
+The 12-task plan lives in `specs/03-phase2-triage-agent.md`; tasks 10–11 are Codex's.
+
+---
+
+## Open items (as of 2026-07-28)
+
+- **G1.5 (Phase 1) still open:** `fixtures/eval_tickets.json`, `fixtures/retrieval_checks.json`, and `fixtures/enterprise/taxonomy.json` all carry `review_status: draft_pending_code_owner_review`. The 20 eval labels need code-owner sign-off; Phase 5's accuracy numbers are only as meaningful as those labels.
+- **Build Phase 2** on `feat/phase2-triage-agent`: tasks 1–9 and 12 (Claude), 10–11 (Codex).
+- **Phase 3 spec review:** next review gate after Phase 2 is built.
 
 ---
 

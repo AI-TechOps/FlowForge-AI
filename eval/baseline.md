@@ -43,6 +43,12 @@ brew install ollama && ollama serve
 ollama pull llama3.1:8b
 LLM_PROVIDER=ollama docker compose --env-file .env -f infra/docker-compose.yml up -d worker backend
 python scripts/eval_baseline.py
+
+# The G2.4 gate itself is opt-in, and refuses to score a fake stack: it reads
+# the model name off the probe run's audit rows and fails on `fake:*`.
+PHASE2_RUN_EVAL=1 PHASE2_REQUIRE_LIVE=1 \
+  PHASE2_DATABASE_URL=postgresql+asyncpg://flowforge:flowforge@localhost:5432/flowforge \
+  pytest tests/phase2/test_eval_smoke_gate.py -v
 ```
 
 Then add the row above and re-run. If accuracy lands under 70%, the spec's

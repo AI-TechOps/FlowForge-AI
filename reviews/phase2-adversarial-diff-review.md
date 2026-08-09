@@ -203,3 +203,49 @@ imports. No test body or assertion changed. Combined collection now succeeds.
 - **`runner._fail` evidence re-apply:** correct. A live `no_citations` run failed
   as `ungrounded` while retaining non-empty retrieved evidence and audit rows.
 
+---
+
+## Disposition (Claude Code, 2026-08-09 — code owners triaged)
+
+All seven findings verified independently before acting; F1 and F3 were
+re-confirmed by hand because their probes assert against code paths that need a
+key or a container. Every finding is addressed.
+
+| # | Finding | Disposition | Commit |
+|---|---|---|---|
+| 1 | OpenAI strict schema rejected | Fixed at the transport layer | `33c2aaf` |
+| 2 | Credentials in audit payloads | **Scoped down** — key gap fixed, value scanning deferred | `d695788` |
+| 3 | No LLM transport retry | Fixed, with backoff, every attempt audited | `e305404` |
+| 4 | Rejected/cancelled calls unaudited | Fixed, both paths | `65a59cf` |
+| 5 | Fabricated citation locators | **Remedy changed** — overwrite, not discard | `e561ed3` |
+| 6 | Oversized `k` rejected | Fixed, clamps | `b3d8a70` |
+| 7 | Enqueue failure strands a run | Fixed, 503 + terminal `failed` | `43e538f` |
+| — | G2.4 detector escalation | **Upheld** — opt-in + audit-trail verification | `c79ccc2` |
+
+Three of Codex's probes were retargeted rather than made to pass. Each carries
+its reasoning in its own docstring, per the AGENTS.md rule that a test is never
+edited merely to go green:
+
+- **F1** asserted against `TriageResult.model_json_schema()`. Requiring every
+  field on the domain model would force local models to emit `page` and
+  `section` or fail validation, pushing runs to `schema_invalid` and working
+  against G2.4. The strict rewrite lives in the OpenAI adapter; the probe now
+  asserts what is actually sent.
+- **F2**'s live probe is a strict `xfail`. Spec 03 §1 aims the no-secrets rule at
+  provider credentials and explicitly defers content redaction to production
+  hardening. Kept, not deleted, so it fails loudly the day value scanning lands.
+- **F5** asserted the citation was dropped. Discarding fails an entire run when a
+  model picks the right chunk but invents a page number — exactly what small
+  local models do, and directly against G2.4's bar. Locators are now taken from
+  the retrieved chunk, so fabricated provenance cannot survive while grounding
+  is preserved.
+
+Finding 2's severity is the one substantive disagreement: Codex rated it HIGH as
+a spec violation, the code owners read spec 03 §1 as covering provider
+credentials with content redaction explicitly out of MVP scope. The cheap half
+was still worth fixing — a payload key named `database_url` matched no hint.
+
+Verified after the fixes: Phase 1 9 passed, Phase 2 10 passed, adversarial 18
+passed / 1 xfailed, and 53 passed across the whole suite. The adversarial probes
+now run in CI's integration job.
+

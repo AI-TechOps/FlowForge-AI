@@ -8,7 +8,8 @@ from pathlib import Path
 from uuid import uuid4
 
 import pytest
-from conftest import (
+
+from .conftest import (
     Phase1Client,
     document_id_from,
     response_detail,

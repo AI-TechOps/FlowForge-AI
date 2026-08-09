@@ -6,7 +6,7 @@ import sys
 from enum import Enum
 from pathlib import Path
 
-from conftest import (
+from .conftest import (
     Phase2Client,
     assert_failure_reason,
     audit_entries_from,

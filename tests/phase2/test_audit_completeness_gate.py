@@ -5,7 +5,8 @@ import os
 from typing import Any
 
 import pytest
-from conftest import (
+
+from .conftest import (
     READ_TOOL_NAMES,
     Phase2Client,
     audit_entries_from,

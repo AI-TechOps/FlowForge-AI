@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from conftest import Phase1Client, retrieval_results_from
+from .conftest import Phase1Client, retrieval_results_from
 
 
 def _retrieval_checks(path: Path) -> list[dict[str, object]]:

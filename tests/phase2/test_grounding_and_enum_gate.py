@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import pytest
-from conftest import (
+
+from .conftest import (
     Phase2Client,
     assert_failure_reason,
     audit_entries_from,

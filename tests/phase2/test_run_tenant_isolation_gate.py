@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 from uuid import uuid4
 
-from conftest import (
+from .conftest import (
     Phase2Client,
     audit_entries_from,
     document_id_from,

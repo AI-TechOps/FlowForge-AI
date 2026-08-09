@@ -8,7 +8,8 @@ from collections.abc import Callable
 from pathlib import Path
 
 import pytest
-from conftest import Phase2Client, triage_and_wait
+
+from .conftest import Phase2Client, triage_and_wait
 
 
 def _require_real_triage_model() -> None:

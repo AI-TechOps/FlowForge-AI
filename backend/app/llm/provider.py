@@ -301,9 +301,7 @@ def _grammar_safe_schema(node: Any) -> Any:
     """
     if isinstance(node, dict):
         return {
-            key: _grammar_safe_schema(value)
-            for key, value in node.items()
-            if key != "maxLength"
+            key: _grammar_safe_schema(value) for key, value in node.items() if key != "maxLength"
         }
     if isinstance(node, list):
         return [_grammar_safe_schema(item) for item in node]

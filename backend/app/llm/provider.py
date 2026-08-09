@@ -73,7 +73,7 @@ class OllamaProvider(LLMProvider):
         self, prompt: str, schema: dict[str, Any], system: str | None = None
     ) -> StructuredCompletion:
         # Ollama constrains decoding to the JSON schema passed as `format`.
-        return await self._chat(prompt, schema, system)
+        return await self._chat(prompt, _grammar_safe_schema(schema), system)
 
     async def _chat(
         self, prompt: str, schema: dict[str, Any] | None, system: str | None
@@ -278,6 +278,36 @@ class FakeProvider(LLMProvider):
             values[index] += sign
         norm = math.sqrt(sum(v * v for v in values)) or 1.0
         return [v / norm for v in values]
+
+
+def _grammar_safe_schema(node: Any) -> Any:
+    """Drop `maxLength` from the schema sent to Ollama.
+
+    Ollama compiles the schema into a sampling grammar, and a large maxLength
+    blows that compiler up: every structured call returns
+
+        400 "Failed to initialize samplers: failed to parse grammar"
+
+    Measured on ollama 0.32.6 with llama3.1:8b — maxLength 1024 compiles, 2000
+    does not. `summary` (2000) and `recommended_resolution` (5000) both sat
+    over the line, so triage against a real local model failed 100% of the
+    time while every fake-provider gate stayed green, because the fake never
+    compiles a grammar.
+
+    Dropping the bound rather than lowering it keeps the domain contract
+    honest: TriageResult still enforces the real limits when the response is
+    validated, and an over-long answer becomes a normal schema-repair retry
+    instead of a silently truncated one.
+    """
+    if isinstance(node, dict):
+        return {
+            key: _grammar_safe_schema(value)
+            for key, value in node.items()
+            if key != "maxLength"
+        }
+    if isinstance(node, list):
+        return [_grammar_safe_schema(item) for item in node]
+    return node
 
 
 def _strict_schema(node: Any) -> Any:

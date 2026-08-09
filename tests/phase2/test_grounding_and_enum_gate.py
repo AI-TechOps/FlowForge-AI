@@ -49,8 +49,7 @@ def test_g2_3_out_of_taxonomy_value_retries_once_then_fails(
         org_id=corpus_org_id,
         title=f"Invalid {field} acceptance probe",
         description=(
-            "A single employee needs routine password-lockout assistance. "
-            f"{directive}"
+            f"A single employee needs routine password-lockout assistance. {directive}"
         ),
         service="Meridian identity",
     )

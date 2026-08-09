@@ -170,7 +170,9 @@ def response_detail(response: ApiResponse) -> str:
     return f"HTTP {response.status}: {response.text[:1000]}"
 
 
-def _object_body(response: ApiResponse, wrapper: str | None = None) -> dict[str, object]:
+def _object_body(
+    response: ApiResponse, wrapper: str | None = None
+) -> dict[str, object]:
     assert isinstance(response.body, dict), response_detail(response)
     body = response.body
     if wrapper and isinstance(body.get(wrapper), dict):
@@ -214,7 +216,7 @@ def run_detail_from(response: ApiResponse) -> dict[str, object]:
 def audit_entries_from(run: dict[str, object]) -> list[dict[str, object]]:
     entries = run.get("audit_entries", run.get("audit_log"))
     assert isinstance(entries, list), (
-        "GET /api/runs/{id} must return audit_entries for G2.5: " f"{run!r}"
+        f"GET /api/runs/{{id}} must return audit_entries for G2.5: {run!r}"
     )
     assert all(isinstance(entry, dict) for entry in entries)
     return entries
@@ -223,7 +225,7 @@ def audit_entries_from(run: dict[str, object]) -> list[dict[str, object]]:
 def evidence_from(run: dict[str, object]) -> list[dict[str, object]]:
     evidence = run.get("evidence", run.get("evidence_used"))
     assert isinstance(evidence, list), (
-        "GET /api/runs/{id} must return evidence used: " f"{run!r}"
+        f"GET /api/runs/{{id}} must return evidence used: {run!r}"
     )
     assert all(isinstance(item, dict) for item in evidence)
     return evidence
@@ -231,7 +233,9 @@ def evidence_from(run: dict[str, object]) -> list[dict[str, object]]:
 
 def operation_name(entry: dict[str, object]) -> str:
     name = entry.get("tool", entry.get("name"))
-    assert isinstance(name, str) and name.strip(), f"audit entry lacks tool name: {entry!r}"
+    assert isinstance(name, str) and name.strip(), (
+        f"audit entry lacks tool name: {entry!r}"
+    )
     return name
 
 
@@ -308,14 +312,18 @@ def _truthy_environment(name: str) -> bool:
 
 def _asyncpg_url(database_url: str) -> str:
     parsed = urlsplit(database_url)
-    return urlunsplit(("postgresql", parsed.netloc, parsed.path, parsed.query, parsed.fragment))
+    return urlunsplit(
+        ("postgresql", parsed.netloc, parsed.path, parsed.query, parsed.fragment)
+    )
 
 
 async def _seed_organizations(database_url: str, org_ids: tuple[str, ...]) -> None:
     try:
         import asyncpg
     except ImportError as exc:
-        raise RuntimeError("asyncpg is required to seed Phase 2 gate organizations") from exc
+        raise RuntimeError(
+            "asyncpg is required to seed Phase 2 gate organizations"
+        ) from exc
 
     connection = await asyncpg.connect(_asyncpg_url(database_url))
     try:
@@ -430,8 +438,12 @@ def locate_corpus_paths(repository_root: Path) -> dict[str, Path]:
     enterprise_dir = repository_root / "fixtures" / "enterprise"
     paths: dict[str, Path] = {}
     for doc_id in CORPUS_TITLES:
-        matches = sorted(path for path in enterprise_dir.iterdir() if doc_id in path.stem.upper())
-        assert len(matches) == 1, f"expected one fixture for {doc_id}, found {matches!r}"
+        matches = sorted(
+            path for path in enterprise_dir.iterdir() if doc_id in path.stem.upper()
+        )
+        assert len(matches) == 1, (
+            f"expected one fixture for {doc_id}, found {matches!r}"
+        )
         paths[doc_id] = matches[0]
     return paths
 

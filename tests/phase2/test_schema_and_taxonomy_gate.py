@@ -142,7 +142,7 @@ def test_g2_1_unparseable_output_retries_once_then_fails_closed(
         org_id=corpus_org_id,
         title="Schema fail-closed acceptance probe",
         description=(
-            "A single employee needs routine VPN troubleshooting. " f"{directive}"
+            f"A single employee needs routine VPN troubleshooting. {directive}"
         ),
         service="MeridianConnect VPN",
     )

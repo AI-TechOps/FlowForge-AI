@@ -141,9 +141,7 @@ async def classify(state: TriageState, config: RunnableConfig) -> TriageState:
             if last_error is None
             else f"{prompt}\n\n{REPAIR_PROMPT.format(error=last_error)}"
         )
-        completion = await _complete_with_retry(
-            provider, context, attempt_prompt, schema, attempt
-        )
+        completion = await _complete_with_retry(provider, context, attempt_prompt, schema, attempt)
 
         outcome = parse_triage_result(completion.raw)
         if outcome.ok and outcome.result is not None:

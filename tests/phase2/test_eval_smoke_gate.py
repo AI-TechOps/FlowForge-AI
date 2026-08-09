@@ -26,7 +26,11 @@ def _require_armed_gate() -> None:
     Compose only, so the variable is typically unset here while the backend is
     perfectly real (Codex Phase 2 escalation).
     """
-    if os.environ.get("PHASE2_RUN_EVAL", "").strip().lower() not in {"1", "true", "yes"}:
+    if os.environ.get("PHASE2_RUN_EVAL", "").strip().lower() not in {
+        "1",
+        "true",
+        "yes",
+    }:
         pytest.skip(
             "G2.4 measures real-model accuracy and is opt-in: set PHASE2_RUN_EVAL=1 "
             "against an Ollama- or OpenAI-backed stack, then record the number in "

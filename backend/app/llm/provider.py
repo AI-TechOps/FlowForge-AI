@@ -238,9 +238,7 @@ class FakeProvider(LLMProvider):
         if mode == "unparseable":
             return self._result("not json at all {", prompt, mode)
         resolved = _resolve_refs(schema, schema)
-        value = _fake_value(
-            resolved, prompt, seed=prompt, mode=mode, bad_enum_field=target_field
-        )
+        value = _fake_value(resolved, prompt, seed=prompt, mode=mode, bad_enum_field=target_field)
         return self._result(json.dumps(value), prompt, mode)
 
     def _injected_mode(self, prompt: str) -> tuple[str, str | None]:

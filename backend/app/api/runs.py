@@ -1,4 +1,6 @@
+import logging
 import uuid
+from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -9,7 +11,9 @@ from app.agents.prompts import AGENT_VERSION
 from app.api.deps import current_org_id
 from app.db import get_session
 from app.ingestion.queue import enqueue_run
-from app.models import AuditLog, Run, RunStatus, Ticket
+from app.models import AuditLog, FailureReason, Run, RunStatus, Ticket
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -49,7 +53,23 @@ async def start_triage(
     await session.commit()
     await session.refresh(run)
 
-    await enqueue_run(run.id, org_id)
+    # The durable row is committed before the job is enqueued, so a Redis
+    # outage here used to strand the run in `queued` forever: no worker would
+    # ever claim it and nothing reconciled it (Codex Phase 2 finding 7). A run
+    # that cannot be started is a failed run, and says so.
+    try:
+        await enqueue_run(run.id, org_id)
+    except Exception as exc:
+        run.status = RunStatus.failed
+        run.failure_reason = FailureReason.internal_error
+        run.error = f"could not enqueue the triage job: {exc}"[:2000]
+        run.finished_at = datetime.now(UTC)
+        await session.commit()
+        logger.exception("failed to enqueue run %s", run.id)
+        raise HTTPException(
+            status_code=503, detail="triage queue unavailable; run marked failed"
+        ) from exc
+
     return {"id": str(run.id), "status": run.status.value}
 
 

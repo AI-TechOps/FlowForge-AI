@@ -145,6 +145,28 @@ async def classify(state: TriageState, config: RunnableConfig) -> TriageState:
 
         outcome = parse_triage_result(completion.raw)
         if outcome.ok and outcome.result is not None:
+            # An uncited answer is schema-valid but useless: it can only end as
+            # `ungrounded`. Spend the repair attempt we already have on asking
+            # again, rather than discarding a run whose classification is
+            # usually right. Measured: llama3.1:8b returned zero citations on 7
+            # of 20 seed tickets, each with 5 chunks available to cite
+            # (eval/baseline.md, 2026-08-09).
+            #
+            # Only worth retrying when there is something to cite — with an
+            # empty knowledge base the second call cannot do better, and the
+            # run must still fail as `ungrounded` (G2.2).
+            if (
+                not outcome.result.citations
+                and state.get("evidence")
+                and attempt < MAX_CLASSIFY_ATTEMPTS
+            ):
+                last_error = (
+                    "you returned zero citations. Cite at least one excerpt by "
+                    "copying its exact chunk_id from the evidence above, with the "
+                    "claim it supports."
+                )
+                logger.warning("classify attempt %d returned no citations; repairing", attempt)
+                continue
             return {
                 "result": outcome.result.model_dump(mode="json"),
                 "confidence": outcome.result.confidence,

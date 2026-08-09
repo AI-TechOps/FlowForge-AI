@@ -42,4 +42,9 @@ class TriageResult(BaseModel):
     # Informational only. The graph derives the real value from the proposed
     # tool's gating (D16 / spec 03 §5) — the model never controls this.
     requires_approval: bool = True
+    # Deliberately NOT min_length=1: an uncited answer is a *grounding* failure,
+    # not a schema failure, and must fail as `ungrounded` (G2.2), never as
+    # `schema_invalid`. Emitting at least one citation is coaxed in the graph's
+    # repair loop instead — a schema `minItems` does not work: Ollama's grammar
+    # compiler silently ignores it, and OpenAI's strict subset rejects it.
     citations: list[Citation] = Field(default_factory=list)

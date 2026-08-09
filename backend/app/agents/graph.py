@@ -12,6 +12,7 @@ Non-serializable dependencies (DB session, org context) travel through
 JSON-serializable for the Postgres checkpointer.
 """
 
+import asyncio
 import logging
 from typing import Any, TypedDict
 
@@ -34,6 +35,8 @@ from app.llm.provider import get_provider
 logger = logging.getLogger(__name__)
 
 MAX_CLASSIFY_ATTEMPTS = 2  # initial attempt + one repair retry (spec 03 §5)
+MAX_TRANSPORT_ATTEMPTS = 2  # initial call + one retry on transport failure (spec 03 §6)
+TRANSPORT_BACKOFF_SECONDS = 1.0
 
 
 class TriageState(TypedDict, total=False):
@@ -67,6 +70,64 @@ async def retrieve_evidence(state: TriageState, config: RunnableConfig) -> Triag
     return {"evidence": evidence}
 
 
+async def _complete_with_retry(
+    provider: Any,
+    context: ToolContext,
+    prompt: str,
+    schema: dict[str, Any],
+    attempt: int,
+) -> Any:
+    """One structured completion, retried on transport failure (spec 03 §6).
+
+    Distinct from the repair retry in `classify`: that one answers "the model
+    replied with something invalid", this one answers "the call never landed".
+    A provider that drops one connection used to fail the entire run as
+    internal_error (Codex Phase 2 finding 3).
+
+    Every attempt is audited, including the ones that raise, so the trail still
+    accounts for every LLM call (G2.5).
+    """
+    last_exc: Exception | None = None
+    for transport_attempt in range(1, MAX_TRANSPORT_ATTEMPTS + 1):
+        try:
+            async with audit.timed(
+                org_id=context.org_id,
+                run_id=context.run_id,
+                actor="agent",
+                tool="llm.classify",
+                payload={
+                    "attempt": attempt,
+                    "transport_attempt": transport_attempt,
+                    "model_schema": "TriageResult",
+                },
+            ) as box:
+                completion = await provider.complete_structured(
+                    prompt, schema, system=TRIAGE_SYSTEM
+                )
+                box["tokens_in"] = completion.tokens_in
+                box["tokens_out"] = completion.tokens_out
+                box["cost_estimate"] = estimate_cost(
+                    completion.model, completion.tokens_in, completion.tokens_out
+                )
+                box["result"] = {"raw_length": len(completion.raw), "model": completion.model}
+            return completion
+        except Exception as exc:  # noqa: BLE001 - any transport error is retryable once
+            last_exc = exc
+            if transport_attempt == MAX_TRANSPORT_ATTEMPTS:
+                break
+            backoff = TRANSPORT_BACKOFF_SECONDS * transport_attempt
+            logger.warning(
+                "llm transport attempt %d failed (%s); retrying in %.1fs",
+                transport_attempt,
+                exc,
+                backoff,
+            )
+            await asyncio.sleep(backoff)
+
+    assert last_exc is not None
+    raise last_exc
+
+
 async def classify(state: TriageState, config: RunnableConfig) -> TriageState:
     context = _context(config)
     provider = get_provider()
@@ -80,22 +141,9 @@ async def classify(state: TriageState, config: RunnableConfig) -> TriageState:
             if last_error is None
             else f"{prompt}\n\n{REPAIR_PROMPT.format(error=last_error)}"
         )
-        async with audit.timed(
-            org_id=context.org_id,
-            run_id=context.run_id,
-            actor="agent",
-            tool="llm.classify",
-            payload={"attempt": attempt, "model_schema": "TriageResult"},
-        ) as box:
-            completion = await provider.complete_structured(
-                attempt_prompt, schema, system=TRIAGE_SYSTEM
-            )
-            box["tokens_in"] = completion.tokens_in
-            box["tokens_out"] = completion.tokens_out
-            box["cost_estimate"] = estimate_cost(
-                completion.model, completion.tokens_in, completion.tokens_out
-            )
-            box["result"] = {"raw_length": len(completion.raw), "model": completion.model}
+        completion = await _complete_with_retry(
+            provider, context, attempt_prompt, schema, attempt
+        )
 
         outcome = parse_triage_result(completion.raw)
         if outcome.ok and outcome.result is not None:

@@ -99,7 +99,11 @@ async def timed(
     box: dict[str, Any] = {}
     try:
         yield box
-    except Exception as exc:
+    # BaseException, not Exception: asyncio.CancelledError is a BaseException,
+    # so the per-run timeout could cancel an in-flight call and erase it from
+    # the trail — the run went typed-`timeout` with an incomplete trace
+    # (Codex Phase 2 finding 4). A cancelled call is still a call that happened.
+    except BaseException as exc:
         await record(
             org_id=org_id,
             run_id=run_id,

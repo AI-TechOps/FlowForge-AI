@@ -52,18 +52,27 @@ class Tool(Generic[ArgsT]):
     permission_check: Callable[[ToolContext, ArgsT], None] | None = field(default=None)
 
     async def invoke(self, context: ToolContext, raw_args: dict[str, Any]) -> Any:
-        """Validate, permission-check, execute, and audit — in that order."""
-        args = self.args_model.model_validate(raw_args)
-        if self.permission_check is not None:
-            self.permission_check(context, args)
+        """Audit, then validate, permission-check, and execute.
 
+        The audit wrapper goes outermost so a rejected call is still a recorded
+        call: argument validation and permission denials used to happen before
+        the wrapper opened and left no trace at all (Codex Phase 2 finding 4).
+        An unaudited authorization failure is the wrong default anywhere, and
+        becomes a real hole in Phase 3 when write tools gate on that check.
+
+        Payload is the raw arguments — the validated model does not exist yet
+        when validation is what failed.
+        """
         async with audit.timed(
             org_id=context.org_id,
             run_id=context.run_id,
             actor=context.actor,
             tool=self.name,
-            payload=args.model_dump(mode="json"),
+            payload=raw_args,
         ) as box:
+            args = self.args_model.model_validate(raw_args)
+            if self.permission_check is not None:
+                self.permission_check(context, args)
             result = await self.handler(context, args)
             box["result"] = _summarize(result)
             return result

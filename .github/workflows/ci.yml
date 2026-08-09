@@ -54,8 +54,10 @@ jobs:
       # Scratch DB for the migration upgrade→downgrade→upgrade gate; the
       # runner script refuses any database whose name lacks a scratch marker.
       MIGRATION_TEST_DATABASE_URL: postgresql+asyncpg://flowforge:flowforge@localhost:5432/flowforge_scratch
-      # Required by app settings at import time (seed-script gate); nothing
-      # in the test job actually connects to Redis.
+      # Both are required by app settings at import time: app/db.py builds the
+      # engine on import, so any test that imports app/ needs them present even
+      # though nothing in this job connects to Postgres-via-app or to Redis.
+      DATABASE_URL: postgresql+asyncpg://flowforge:flowforge@localhost:5432/flowforge_scratch
       REDIS_URL: redis://localhost:6379/0
       # Phase 1 gates embed without Ollama via the deterministic fake
       # provider (D15). Refused when APP_ENV=prod; CI runs as dev.
@@ -170,6 +172,11 @@ jobs:
           PHASE2_REQUIRE_LIVE: "1"
           PHASE2_DATABASE_URL: postgresql+asyncpg://flowforge:flowforge@localhost:5432/flowforge
           PHASE2_BASE_URL: http://localhost:8000
+          # Several probes import app/ directly (audit scrubber, tool clamping,
+          # transport retry). app/db.py constructs the engine at import time, so
+          # settings must resolve even for probes that never open a connection.
+          DATABASE_URL: postgresql+asyncpg://flowforge:flowforge@localhost:5432/flowforge
+          REDIS_URL: redis://localhost:6379/0
         run: pytest tests/adversarial -v --tb=short
 
       - name: Stack logs on failure

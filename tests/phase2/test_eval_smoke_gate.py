@@ -12,22 +12,50 @@ import pytest
 from .conftest import Phase2Client, triage_and_wait
 
 
-def _require_real_triage_model() -> None:
+def _require_armed_gate() -> None:
     """G2.4 is the one gate that measures answer quality, not plumbing.
 
     The fake provider classifies by hashing token content (D16 decision 3), so
     its accuracy is noise by construction — scoring it would produce a number
     that means nothing and a red gate that signals nothing. The rest of the
     Phase 2 gates run on it precisely because they test plumbing.
+
+    Arming is explicit rather than inferred. An earlier version read
+    LLM_PROVIDER from the pytest process, which says nothing about the provider
+    the running stack uses — the documented workflow passes .env to Docker
+    Compose only, so the variable is typically unset here while the backend is
+    perfectly real (Codex Phase 2 escalation).
     """
-    provider = os.environ.get("LLM_PROVIDER", "").strip().lower()
-    if provider not in {"ollama", "openai"}:
+    if os.environ.get("PHASE2_RUN_EVAL", "").strip().lower() not in {"1", "true", "yes"}:
         pytest.skip(
-            "G2.4 needs a real triage model; the stack under test reports "
-            f"LLM_PROVIDER={provider or '(unset)'}. Run against an Ollama- or "
-            "OpenAI-backed stack with LLM_PROVIDER set to match, then record the "
-            "number in eval/baseline.md."
+            "G2.4 measures real-model accuracy and is opt-in: set PHASE2_RUN_EVAL=1 "
+            "against an Ollama- or OpenAI-backed stack, then record the number in "
+            "eval/baseline.md."
         )
+
+
+def _assert_stack_is_not_fake(run: dict[str, object]) -> None:
+    """Verify the provider from the stack's own audit trail, not from env.
+
+    Every classify call records the model it used, so the run just executed is
+    direct evidence of what answered. An armed gate pointed at a fake backend
+    must fail loudly, never quietly score noise.
+    """
+    entries = run.get("audit_entries")
+    assert isinstance(entries, list), f"run detail lacks audit_entries: {run!r}"
+    models = {
+        str(result.get("model"))
+        for entry in entries
+        if isinstance(entry, dict) and isinstance(result := entry.get("result"), dict)
+        if result.get("model")
+    }
+    assert models, f"no LLM audit row recorded a model name: {run!r}"
+    fake_models = {model for model in models if model.startswith("fake:")}
+    assert not fake_models, (
+        f"G2.4 is armed but the stack answered with {sorted(fake_models)}. "
+        "The fake provider's accuracy is noise by construction (D16 decision 3) — "
+        "point PHASE2_RUN_EVAL at an Ollama- or OpenAI-backed stack."
+    )
 
 
 def test_g2_4_seed_set_category_accuracy_is_at_least_seventy_percent(
@@ -38,7 +66,7 @@ def test_g2_4_seed_set_category_accuracy_is_at_least_seventy_percent(
     record_property: Callable[[str, object], None],
 ) -> None:
     del corpus_ready
-    _require_real_triage_model()
+    _require_armed_gate()
     fixture_path = repository_root / "fixtures" / "eval_tickets.json"
     payload = json.loads(fixture_path.read_text(encoding="utf-8"))
     tickets = payload.get("eval_tickets")
@@ -51,6 +79,7 @@ def test_g2_4_seed_set_category_accuracy_is_at_least_seventy_percent(
     triage_result = importlib.import_module("app.agents.schema").TriageResult
 
     correct = 0
+    checked_provider = False
     observations: list[str] = []
     for raw_ticket in tickets:
         assert isinstance(raw_ticket, dict)
@@ -68,6 +97,10 @@ def test_g2_4_seed_set_category_accuracy_is_at_least_seventy_percent(
             service=str(raw_ticket["affected_service"]),
             priority=str(raw_ticket.get("existing_priority") or "P3"),
         )
+        if not checked_provider:
+            _assert_stack_is_not_fake(run)
+            checked_provider = True
+
         output = run.get("output")
         predicted = output.get("category") if isinstance(output, dict) else None
         if run.get("status") == "completed":

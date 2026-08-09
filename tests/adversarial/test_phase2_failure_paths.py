@@ -183,9 +183,19 @@ async def test_transient_llm_transport_failure_retries_then_succeeds(
 
 
 def test_openai_strict_schema_marks_every_object_property_required() -> None:
-    from app.agents.schema import TriageResult
+    """Finding 1, resolved at the transport layer.
 
-    schema = TriageResult.model_json_schema()
+    The probe originally asserted this of `TriageResult.model_json_schema()`.
+    Making the domain model itself require every field would also force `page`
+    and `section` to be present in model output, so a local model omitting a
+    locator would fail schema validation outright — pushing runs to
+    `schema_invalid` and working against G2.4. The strict rewrite therefore
+    lives in the OpenAI adapter, and this asserts what is actually sent.
+    """
+    from app.agents.schema import TriageResult
+    from app.llm.provider import _strict_schema
+
+    schema = _strict_schema(TriageResult.model_json_schema())
     object_schemas = {"TriageResult": schema}
     object_schemas.update(
         {

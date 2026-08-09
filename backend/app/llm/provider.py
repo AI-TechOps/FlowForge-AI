@@ -150,7 +150,7 @@ class OpenAIProvider(LLMProvider):
                 "type": "json_schema",
                 "json_schema": {
                     "name": "triage_result",
-                    "schema": schema,
+                    "schema": _strict_schema(schema),
                     "strict": True,
                 },
             }
@@ -280,6 +280,28 @@ class FakeProvider(LLMProvider):
             values[index] += sign
         norm = math.sqrt(sum(v * v for v in values)) or 1.0
         return [v / norm for v in values]
+
+
+def _strict_schema(node: Any) -> Any:
+    """Rewrite a Pydantic JSON schema for OpenAI's strict Structured Outputs.
+
+    Strict mode requires every property of every object to appear in
+    `required`; optionality is expressed by allowing null, not by omission.
+    Pydantic omits any field with a default, so `citations`, `requires_approval`
+    and the Citation locators dropped out and OpenAI rejected the request
+    before inference — the whole OpenAI path 400'd (Codex Phase 2 finding 1).
+
+    Rewriting here rather than in `TriageResult` keeps the domain model honest
+    about what is genuinely optional; this is a transport-level concern.
+    """
+    if isinstance(node, dict):
+        rewritten = {key: _strict_schema(value) for key, value in node.items()}
+        if rewritten.get("type") == "object" and "properties" in rewritten:
+            rewritten["required"] = list(rewritten["properties"])
+        return rewritten
+    if isinstance(node, list):
+        return [_strict_schema(item) for item in node]
+    return node
 
 
 def _resolve_refs(node: Any, root: dict[str, Any]) -> Any:

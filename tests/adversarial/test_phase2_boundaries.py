@@ -17,6 +17,19 @@ from tests.phase2.conftest import (
 )
 
 
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "Finding 2, scoped by the code owners to the key-hint gap only. Spec 03 §1 "
+        "aims the no-secrets rule at PROVIDER credentials ('provider credentials live "
+        "in env/config and are never part of tool args or logged prompts') and "
+        "explicitly defers content redaction: 'Demo/ticket data is fictional by "
+        "design; PII redaction in audit payloads is noted as production hardening, "
+        "not MVP scope.' A credential a user pastes into ticket text is that deferred "
+        "case. Kept as a strict xfail so it fails loudly the day value-level scanning "
+        "lands and this becomes a passing guarantee."
+    ),
+)
 def test_phase2_audit_never_repeats_a_credential_from_ticket_text(
     phase2_client: Phase2Client,
     empty_org_id: str,

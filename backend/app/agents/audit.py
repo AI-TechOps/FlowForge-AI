@@ -17,7 +17,19 @@ from typing import Any
 from app.db import async_session_factory
 from app.models import AuditLog
 
-SECRET_KEY_HINTS = ("api_key", "apikey", "token", "secret", "password", "authorization", "dsn")
+SECRET_KEY_HINTS = (
+    "api_key",
+    "apikey",
+    "token",
+    "secret",
+    "password",
+    "authorization",
+    "dsn",
+    # Connection strings are named in the spec's no-secrets rule but were not
+    # matched by any hint above (Codex Phase 2 finding 2).
+    "database_url",
+    "connection_string",
+)
 REDACTED = "[redacted]"
 
 

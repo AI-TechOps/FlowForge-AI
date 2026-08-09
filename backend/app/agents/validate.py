@@ -71,13 +71,31 @@ def _compact_errors(exc: ValidationError) -> str:
 
 
 def valid_citations(result: TriageResult, evidence: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Citations whose chunk_id was actually retrieved in this run."""
-    retrieved = {str(chunk.get("chunk_id")) for chunk in evidence}
-    return [
-        citation.model_dump(mode="json")
-        for citation in result.citations
-        if str(citation.chunk_id) in retrieved
-    ]
+    """Citations whose chunk_id was actually retrieved, with trusted locators.
+
+    The model chooses only two things: which chunk supports the claim, and what
+    the claim is. `document_title`, `page` and `section` are overwritten from
+    the retrieved chunk, because a citation naming a real chunk but an invented
+    document and page 999 used to pass grounding and reach the run detail as
+    though it were provenance (Codex Phase 2 finding 5).
+
+    Overwriting rather than discarding the citation is deliberate: a small
+    local model that picks the right chunk but hallucinates a page number still
+    produces a correctly-attributed citation, instead of failing the whole run
+    as ungrounded.
+    """
+    retrieved = {str(chunk.get("chunk_id")): chunk for chunk in evidence}
+    grounded: list[dict[str, Any]] = []
+    for citation in result.citations:
+        chunk = retrieved.get(str(citation.chunk_id))
+        if chunk is None:
+            continue
+        payload = citation.model_dump(mode="json")
+        payload["document_title"] = chunk.get("document_title")
+        payload["page"] = chunk.get("page")
+        payload["section"] = chunk.get("section")
+        grounded.append(payload)
+    return grounded
 
 
 def is_grounded(result: TriageResult, evidence: list[dict[str, Any]]) -> bool:

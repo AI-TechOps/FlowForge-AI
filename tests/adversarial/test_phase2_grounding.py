@@ -27,7 +27,16 @@ def _triage_payload(
     }
 
 
-def test_citation_with_matching_chunk_but_fabricated_locator_is_not_grounded() -> None:
+def test_citation_with_matching_chunk_but_fabricated_locator_is_overwritten() -> None:
+    """Finding 5, resolved by the code owners as overwrite-from-evidence.
+
+    The probe originally asserted the citation was dropped and the run left
+    ungrounded. Discarding punishes a model that picks the right chunk but
+    invents a page number — it would fail the whole run, and small local models
+    do exactly that, which works directly against G2.4's accuracy bar. The
+    remedy instead takes the locator from the retrieved chunk, so fabricated
+    provenance cannot survive at all while grounding is preserved.
+    """
     from app.agents.schema import TriageResult
     from app.agents.validate import is_grounded, valid_citations
 
@@ -50,8 +59,14 @@ def test_citation_with_matching_chunk_but_fabricated_locator_is_not_grounded() -
         )
     )
 
-    assert valid_citations(result, evidence) == []
-    assert not is_grounded(result, evidence)
+    [citation] = valid_citations(result, evidence)
+    assert is_grounded(result, evidence)
+    # The fabricated locator is gone; the claim, which is the model's to make,
+    # survives untouched.
+    assert citation["document_title"] == "VPN Access Policy"
+    assert citation["page"] == 1
+    assert citation["section"] == "Recovery"
+    assert citation["claim"] == "The recovery procedure applies."
 
 
 def test_forged_chunk_id_cannot_satisfy_grounding() -> None:

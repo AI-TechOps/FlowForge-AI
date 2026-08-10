@@ -83,7 +83,13 @@ async def _execute_once(
     if context.run_id is None:
         raise WriteToolError("write tools require a run context")
 
-    digest = args_hash(tool_name, args)
+    # The ledger column is JSONB, so it needs plain JSON types — a UUID object
+    # raises "not JSON serializable" at flush. Keep `args` typed for dispatch
+    # (the adapter wants a real UUID) and persist a JSON-safe copy.
+    json_args = {
+        key: (str(value) if isinstance(value, uuid.UUID) else value) for key, value in args.items()
+    }
+    digest = args_hash(tool_name, json_args)
     existing = (
         await context.session.execute(
             select(ToolExecution).where(
@@ -103,7 +109,7 @@ async def _execute_once(
         run_id=context.run_id,
         tool=tool_name,
         args_hash=digest,
-        args=args,
+        args=json_args,
     )
     context.session.add(ledger)
     try:

@@ -12,13 +12,24 @@ import uuid
 from datetime import UTC, datetime
 from typing import Any
 
+from sqlalchemy import select
+
 from app.agents.checkpointer import checkpointer
 from app.agents.graph import build_graph
 from app.agents.prompts import AGENT_VERSION
 from app.agents.tools import ToolContext
 from app.config import get_settings
 from app.db import async_session_factory
-from app.models import FailureReason, Run, RunStatus, Ticket, TicketStatus
+from app.models import (
+    Approval,
+    ApprovalStatus,
+    FailureReason,
+    RiskClass,
+    Run,
+    RunStatus,
+    Ticket,
+    TicketStatus,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -70,7 +81,40 @@ async def execute_run(ctx: dict[str, Any], run_id: str, org_id: str) -> str:
         return await _finalize(session, run, state)
 
 
+async def _pause_for_approval(session: Any, run: Run, state: dict[str, Any]) -> str:
+    """The graph interrupted: record the pending approval and stop.
+
+    The job ends here. Nothing polls, nothing blocks — the checkpoint in
+    Postgres is the only thing keeping the run alive, which is exactly what
+    makes the pause survive a restart (D8, G3.1).
+    """
+    run.evidence = state.get("evidence")
+    run.output = state.get("result")
+    run.confidence = state.get("confidence")
+    run.status = RunStatus.awaiting_approval
+
+    existing = (
+        await session.execute(select(Approval).where(Approval.run_id == run.id))
+    ).scalar_one_or_none()
+    if existing is None:
+        session.add(
+            Approval(
+                org_id=run.org_id,
+                run_id=run.id,
+                status=ApprovalStatus.pending,
+                original_proposal=state.get("proposed_actions", []),
+                risk_class=RiskClass(state.get("risk_class", RiskClass.low.value)),
+            )
+        )
+    await session.commit()
+    logger.info("run %s awaiting approval", run.id)
+    return RunStatus.awaiting_approval.value
+
+
 async def _finalize(session: Any, run: Run, state: dict[str, Any]) -> str:
+    if state.get("__interrupt__"):
+        return await _pause_for_approval(session, run, state)
+
     evidence = state.get("evidence")
 
     reason = state.get("failure_reason")

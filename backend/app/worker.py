@@ -6,13 +6,13 @@ org context (enforced again inside each job — D7).
 
 from arq.connections import RedisSettings
 
-from app.agents.runner import execute_run
+from app.agents.runner import execute_run, resume_run
 from app.config import get_settings
 from app.ingestion.pipeline import ingest_document
 
 
 class WorkerSettings:
-    functions = [ingest_document, execute_run]
+    functions = [ingest_document, execute_run, resume_run]
     redis_settings = RedisSettings.from_dsn(get_settings().redis_url)
     # Concurrency limit (spec 03 §6): triage runs hold an LLM connection, so
     # unbounded parallelism would swamp a local Ollama.

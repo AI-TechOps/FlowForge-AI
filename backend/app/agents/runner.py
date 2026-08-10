@@ -12,6 +12,7 @@ import uuid
 from datetime import UTC, datetime
 from typing import Any
 
+from langgraph.types import Command
 from sqlalchemy import select
 
 from app.agents.checkpointer import checkpointer
@@ -79,6 +80,105 @@ async def execute_run(ctx: dict[str, Any], run_id: str, org_id: str) -> str:
             return await _fail(session, run, FailureReason.internal_error, str(exc))
 
         return await _finalize(session, run, state)
+
+
+async def resume_run(ctx: dict[str, Any], run_id: str, org_id: str) -> str:
+    """arq entrypoint: continue a paused run after a human decision.
+
+    This is deliberately a *fresh* job in a possibly different process. It
+    loads the checkpoint written before the pause and continues from the
+    interrupt — which is what makes the pause durable rather than a
+    same-request wait (G3.1).
+    """
+    run_uuid = uuid.UUID(run_id)
+    org_uuid = uuid.UUID(org_id)
+    settings = get_settings()
+
+    async with async_session_factory() as session:
+        run = await session.get(Run, run_uuid)
+        if run is None or run.org_id != org_uuid:
+            logger.warning("resume: run %s not found in org %s", run_id, org_id)
+            return "missing"
+
+        approval = (
+            await session.execute(select(Approval).where(Approval.run_id == run.id))
+        ).scalar_one_or_none()
+        if approval is None or approval.decision is None:
+            logger.warning("resume: run %s has no decided approval", run_id)
+            return "missing"
+
+        # Terminal runs are never resumed: a duplicate resume job must be a
+        # no-op rather than a second pass at the write path.
+        if run.status not in (RunStatus.awaiting_approval, RunStatus.executing):
+            logger.info("resume: run %s already %s", run_id, run.status.value)
+            return run.status.value
+
+        run.status = RunStatus.executing
+        await session.commit()
+
+        resume_payload = {
+            "decision": approval.decision.value,
+            "final_values": approval.final_values,
+        }
+        context = ToolContext(
+            session=session,
+            org_id=org_uuid,
+            run_id=run_uuid,
+            actor=f"user:{approval.approver_user_id}",
+        )
+        try:
+            async with checkpointer() as saver:
+                graph = build_graph(saver)
+                state = await asyncio.wait_for(
+                    graph.ainvoke(
+                        Command(resume=resume_payload),
+                        config={
+                            "configurable": {
+                                "thread_id": str(run_uuid),
+                                "tool_context": context,
+                            }
+                        },
+                    ),
+                    timeout=settings.run_timeout_seconds,
+                )
+        except TimeoutError:
+            return await _fail(
+                session,
+                run,
+                FailureReason.timeout,
+                f"resume exceeded {settings.run_timeout_seconds}s",
+            )
+        except Exception as exc:  # noqa: BLE001 - any escape must still land terminal
+            logger.exception("resume of run %s failed", run_id)
+            return await _fail(session, run, FailureReason.tool_error, str(exc))
+
+        return await _finalize_decision(session, run, state)
+
+
+async def _finalize_decision(session: Any, run: Run, state: dict[str, Any]) -> str:
+    """Land a resumed run in its terminal status."""
+    if state.get("rejected"):
+        run.status = RunStatus.rejected
+        run.finished_at = datetime.now(UTC)
+        await session.commit()
+        logger.info("run %s rejected — no write occurred", run.id)
+        return RunStatus.rejected.value
+
+    run.status = RunStatus.completed
+    run.finished_at = datetime.now(UTC)
+    output = dict(run.output or {})
+    output["executed_actions"] = state.get("executed_actions", [])
+    run.output = output
+
+    ticket = await session.get(Ticket, run.ticket_id)
+    if ticket is not None:
+        ticket.status = TicketStatus.actioned
+
+    await session.commit()
+    logger.info(
+        "run %s completed with %d action(s)", run.id, len(state.get("executed_actions", []))
+    )
+    return RunStatus.completed.value
 
 
 async def _pause_for_approval(session: Any, run: Run, state: dict[str, Any]) -> str:

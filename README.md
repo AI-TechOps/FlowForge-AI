@@ -2,8 +2,6 @@
 
 Enterprise AI workflow automation platform. AI agents read support tickets, retrieve company knowledge via RAG, propose grounded resolutions, pause for human approval, execute approved actions against a ticket system, and record everything for audit and evaluation.
 
-> Portfolio capstone framed for a Forward-Deployed Engineer role. See `specs/00-mvp-definition.md` for the full MVP.
-
 ## Documents in this repo
 
 - `CLAUDE.md` — standing context for Claude Code. Read first, every session.

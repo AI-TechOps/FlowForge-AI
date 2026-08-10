@@ -174,6 +174,16 @@ REGISTRY: dict[str, Tool[Any]] = {
 }
 
 
+def register(tool: Tool[Any]) -> None:
+    """Add a tool to the registry.
+
+    Write tools register themselves at import (app.agents.write_tools) rather
+    than being listed here, so this module stays free of any dependency on the
+    ticket-system adapter and the read tools remain usable on their own.
+    """
+    REGISTRY[tool.name] = tool
+
+
 def get_tool(name: str) -> Tool[Any]:
     try:
         return REGISTRY[name]

@@ -9,7 +9,7 @@ in a terminal status — never stuck in `running`.
 import asyncio
 import logging
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from langgraph.types import Command
@@ -21,6 +21,7 @@ from app.agents.prompts import AGENT_VERSION
 from app.agents.tools import ToolContext
 from app.config import get_settings
 from app.db import async_session_factory
+from app.ingestion.queue import enqueue_resume
 from app.models import (
     Approval,
     ApprovalStatus,
@@ -153,6 +154,37 @@ async def resume_run(ctx: dict[str, Any], run_id: str, org_id: str) -> str:
             return await _fail(session, run, FailureReason.tool_error, str(exc))
 
         return await _finalize_decision(session, run, state)
+
+
+async def recover_stranded_runs() -> int:
+    """Re-enqueue runs whose worker died mid-execute (spec 04 §4).
+
+    A run left in `executing` has an approved decision and possibly a partly
+    applied set of writes. Replay is safe precisely because each write claims
+    its idempotency key first: the completed ones return their stored result
+    and only the unfinished ones touch the adapter (G3.3).
+
+    Runs in `awaiting_approval` are deliberately NOT recovered — they are
+    waiting on a human, not on us, and that wait is allowed to be arbitrarily
+    long. That is the difference between a stalled run and a paused one.
+    """
+    settings = get_settings()
+    cutoff = datetime.now(UTC) - timedelta(seconds=settings.run_timeout_seconds)
+
+    async with async_session_factory() as session:
+        stranded = (
+            (
+                await session.execute(
+                    select(Run).where(Run.status == RunStatus.executing, Run.started_at < cutoff)
+                )
+            )
+            .scalars()
+            .all()
+        )
+        for run in stranded:
+            logger.warning("recovering run %s stranded in executing", run.id)
+            await enqueue_resume(run.id, run.org_id)
+        return len(stranded)
 
 
 async def _finalize_decision(session: Any, run: Run, state: dict[str, Any]) -> str:

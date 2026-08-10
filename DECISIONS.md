@@ -182,11 +182,27 @@ The 12-task plan lives in `specs/03-phase2-triage-agent.md`; tasks 10–11 are C
 
 ---
 
-## Open items (as of 2026-07-28)
+## D17 — Phase 3 review gate resolved (2026-08-09)
 
-- **G1.5 (Phase 1) still open:** `fixtures/eval_tickets.json`, `fixtures/retrieval_checks.json`, and `fixtures/enterprise/taxonomy.json` all carry `review_status: draft_pending_code_owner_review`. The 20 eval labels need code-owner sign-off; Phase 5's accuracy numbers are only as meaningful as those labels.
-- **Build Phase 2** on `feat/phase2-triage-agent`: tasks 1–9 and 12 (Claude), 10–11 (Codex).
-- **Phase 3 spec review:** next review gate after Phase 2 is built.
+Phase 2 is built and merged (PR #8). G2.1–G2.6 pass; G2.4 cleared the 70% bar — 75.0% as recorded, independently reproduced at 80.0% (16/20) on a fresh corpus ingest. The Phase 3 spec is **Approved** with five decisions:
+
+1. **Proposed actions are derived in code, not chosen by the model.** `TriageResult` names values, never tools; a pure function maps them to concrete tool calls, emitting an action only when it would actually change the ticket. Keeps D16 decision 2 intact and adds no new failure mode for a small local model.
+2. **One bundled approval per run** — a single card lists every proposed action and the approver decides once. Per-action approval was rejected: it multiplies inbox rows and breaks the one-run-one-decision mapping the durable resume depends on.
+3. **Approver identity via an `X-User-Id` header** this phase, mirroring the `X-Org-Id` placeholder, replaced by the authenticated principal in Phase 4. Chosen over a nullable column so segregation of duties is testable now — an unattributed approval would gut the audit trail in the phase that exists to create it.
+4. **Idempotency in a `tool_executions` table**, unique on `(run_id, tool, args_hash)`. Durable across restarts unlike Redis, and the unique index prevents double-execution under concurrent resumes; `audit_log` stays purely append-only.
+5. **LangGraph dynamic `interrupt()` + `Command(resume=...)`** rather than static `interrupt_before`, so the decision payload rides the resume value and the graph carries no approval-specific plumbing.
+
+The 12-task plan lives in `specs/04-phase3-actions-approval.md`; tasks 10–11 are Codex's.
+
+---
+
+## Open items (as of 2026-08-09)
+
+- **G1.5 (Phase 1) is now on the critical path.** `fixtures/eval_tickets.json`, `fixtures/retrieval_checks.json`, and `fixtures/enterprise/taxonomy.json` still carry `review_status: draft_pending_code_owner_review`. G2.4 cleared its bar by a small margin against labels nobody has signed off, and Phase 5's formal eval inherits the same answer key. **EVAL-012 and EVAL-019 were mis-categorised identically in two independent runs** — either a consistent model blind spot or two wrong labels, and they are the first worth a human look.
+- **Eval denominator is inconsistent between tools.** `tests/phase2/test_eval_smoke_gate.py` scores `correct / all tickets` (failures count as wrong); `scripts/eval_baseline.py` scores `correct / completed` (failures excluded). The same run reads 80.0% or 88.9% depending on which you ask. The gate's denominator is the correct one — a run that fails `ungrounded` is a failure to triage, not an excluded sample. Align the script during Phase 3.
+- **Build Phase 3** on `feat/phase3-actions-approval`: tasks 1–9 and 12 (Claude), 10–11 (Codex).
+- **Phase 4 spec review:** the next gate after Phase 3 is built.
+- **Deferred, tracked in ARCHITECTURE.md** (recorded so they are found on purpose, not in an incident): HNSW index on `chunks.embedding`, Postgres RLS, value-level credential scanning in audit payloads, and a genuinely different eval-judge model.
 
 ---
 

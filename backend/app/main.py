@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 
+from app.api.approvals import router as approvals_router
 from app.api.documents import router as documents_router
 from app.api.health import router as health_router
 from app.api.retrieve import router as retrieve_router
@@ -12,3 +13,4 @@ app.include_router(documents_router)
 app.include_router(retrieve_router)
 app.include_router(tickets_router)
 app.include_router(runs_router)
+app.include_router(approvals_router)

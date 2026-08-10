@@ -32,6 +32,8 @@ def ticket_payload(ticket: Ticket) -> dict[str, Any]:
         "department": ticket.department,
         "service": ticket.service,
         "priority": ticket.priority,
+        "assigned_team": ticket.assigned_team,
+        "internal_notes": ticket.internal_notes,
         "status": ticket.status.value,
         "external_ref": ticket.external_ref,
         "is_eval_seed": ticket.is_eval_seed,

@@ -19,6 +19,13 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
+    # Write targets for the Phase 3 tools. `tickets.department` is the
+    # REQUESTER's department, so assign_ticket had nowhere to write until now.
+    op.add_column("tickets", sa.Column("assigned_team", sa.String(100)))
+    op.add_column(
+        "tickets",
+        sa.Column("internal_notes", JSONB(), nullable=False, server_default="[]"),
+    )
     op.create_table(
         "approvals",
         sa.Column("id", UUID(as_uuid=True), primary_key=True),
@@ -105,5 +112,7 @@ def upgrade() -> None:
 def downgrade() -> None:
     op.drop_table("tool_executions")
     op.drop_table("approvals")
+    op.drop_column("tickets", "internal_notes")
+    op.drop_column("tickets", "assigned_team")
     for enum_name in ("risk_class", "approval_decision", "approval_status"):
         sa.Enum(name=enum_name).drop(op.get_bind(), checkfirst=True)

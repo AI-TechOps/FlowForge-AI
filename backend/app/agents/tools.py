@@ -152,6 +152,8 @@ async def _get_ticket(context: ToolContext, args: GetTicketArgs) -> dict[str, An
         "department": ticket.department,
         "service": ticket.service,
         "priority": ticket.priority,
+        "assigned_team": ticket.assigned_team,
+        "internal_notes": ticket.internal_notes,
         "status": ticket.status.value,
         "external_ref": ticket.external_ref,
     }

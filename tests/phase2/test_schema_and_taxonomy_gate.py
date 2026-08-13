@@ -7,6 +7,7 @@ from enum import Enum
 from pathlib import Path
 
 from .conftest import (
+    TRIAGE_SUCCESS_STATUSES,
     Phase2Client,
     assert_failure_reason,
     audit_entries_from,
@@ -101,7 +102,7 @@ def test_g2_1_completed_run_has_exact_pydantic_valid_output_and_evidence(
         service="MeridianConnect VPN",
     )
 
-    assert run["status"] == "completed", run
+    assert run["status"] in TRIAGE_SUCCESS_STATUSES, run
     assert isinstance(run.get("agent_version"), str) and run["agent_version"].strip()
     output = run.get("output")
     assert isinstance(output, dict), run

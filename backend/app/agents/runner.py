@@ -171,20 +171,30 @@ async def recover_stranded_runs() -> int:
     settings = get_settings()
     cutoff = datetime.now(UTC) - timedelta(seconds=settings.run_timeout_seconds)
 
-    async with async_session_factory() as session:
-        stranded = (
-            (
-                await session.execute(
-                    select(Run).where(Run.status == RunStatus.executing, Run.started_at < cutoff)
+    try:
+        async with async_session_factory() as session:
+            stranded = (
+                (
+                    await session.execute(
+                        select(Run).where(
+                            Run.status == RunStatus.executing, Run.started_at < cutoff
+                        )
+                    )
                 )
+                .scalars()
+                .all()
             )
-            .scalars()
-            .all()
-        )
-        for run in stranded:
-            logger.warning("recovering run %s stranded in executing", run.id)
-            await enqueue_resume(run.id, run.org_id)
-        return len(stranded)
+            for run in stranded:
+                logger.warning("recovering run %s stranded in executing", run.id)
+                await enqueue_resume(run.id, run.org_id)
+            return len(stranded)
+    except Exception:  # noqa: BLE001 - recovery is best-effort housekeeping
+        # A worker that refuses to start because a *recovery* query failed is
+        # strictly worse than one that starts without recovering. This fires on
+        # every cold stack: compose brings the worker up before migrations run,
+        # so `runs` does not exist yet and the query raises UndefinedTableError.
+        logger.warning("stranded-run recovery skipped", exc_info=True)
+        return 0
 
 
 async def _finalize_decision(session: Any, run: Run, state: dict[str, Any]) -> str:

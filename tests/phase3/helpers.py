@@ -34,9 +34,9 @@ def actions_from(proposal: object) -> list[dict[str, object]]:
     if isinstance(proposal, list):
         assert all(isinstance(action, dict) for action in proposal), proposal
         return proposal
-    assert isinstance(
-        proposal, dict
-    ), f"proposal must be an object or action list: {proposal!r}"
+    assert isinstance(proposal, dict), (
+        f"proposal must be an object or action list: {proposal!r}"
+    )
     for key in ("actions", "proposed_actions", "tools"):
         value = proposal.get(key)
         if isinstance(value, list):
@@ -58,9 +58,9 @@ def actions_from(proposal: object) -> list[dict[str, object]]:
 
 def action_name(action: dict[str, object]) -> str:
     value = action.get("tool", action.get("name", action.get("action")))
-    assert (
-        isinstance(value, str) and value
-    ), f"proposed action lacks tool name: {action!r}"
+    assert isinstance(value, str) and value, (
+        f"proposed action lacks tool name: {action!r}"
+    )
     return normalize_operation(value)
 
 
@@ -79,9 +79,9 @@ def call_name(call: dict[str, object]) -> str:
     value = call.get(
         "tool", call.get("operation", call.get("name", call.get("method")))
     )
-    assert (
-        isinstance(value, str) and value
-    ), f"recorder entry lacks operation name: {call!r}"
+    assert isinstance(value, str) and value, (
+        f"recorder entry lacks operation name: {call!r}"
+    )
     return normalize_operation(value)
 
 
@@ -95,9 +95,9 @@ def assert_each_action_called_once(
         f"expected={expected!r}, observed={observed!r}"
     )
     for name in expected:
-        assert (
-            observed.count(name) == expected.count(name)
-        ), f"adapter call count differs for {name}: expected={expected!r}, observed={observed!r}"
+        assert observed.count(name) == expected.count(name), (
+            f"adapter call count differs for {name}: expected={expected!r}, observed={observed!r}"
+        )
 
 
 def edited_final_values(proposal: object, marker: str) -> tuple[object, str]:
@@ -195,9 +195,9 @@ def assert_ticket_reflects_actions(ticket: dict[str, object], proposal: object) 
 
 def audit_entries(run: dict[str, object]) -> list[dict[str, object]]:
     value = run.get("audit_entries", run.get("audit_log"))
-    assert isinstance(value, list) and all(
-        isinstance(item, dict) for item in value
-    ), run
+    assert isinstance(value, list) and all(isinstance(item, dict) for item in value), (
+        run
+    )
     return value
 
 

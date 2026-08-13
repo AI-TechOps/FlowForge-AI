@@ -276,9 +276,9 @@ def identifier_from(response: ApiResponse, *, kind: str) -> str:
     assert response.status in expected[kind], response_detail(response)
     body = object_body(response, kind)
     value = body.get("id", body.get(f"{kind}_id"))
-    assert (
-        isinstance(value, str) and value
-    ), f"{kind} response lacks id: {response.body!r}"
+    assert isinstance(value, str) and value, (
+        f"{kind} response lacks id: {response.body!r}"
+    )
     return value
 
 
@@ -347,9 +347,9 @@ def wait_for_approval(
         statuses={"awaiting_approval", "failed"},
         timeout=timeout,
     )
-    assert (
-        run["status"] == "awaiting_approval"
-    ), f"run failed before creating its durable approval: {run!r}"
+    assert run["status"] == "awaiting_approval", (
+        f"run failed before creating its durable approval: {run!r}"
+    )
     started = time.monotonic()
     timeout = timeout or float(os.environ.get("PHASE3_RUN_TIMEOUT_SECONDS", "120"))
     while time.monotonic() - started < timeout:
@@ -399,9 +399,9 @@ def wait_for_document_ready(
         last = body
         if body.get("status") == "ready":
             return
-        assert (
-            body.get("status") != "failed"
-        ), f"gate evidence ingestion failed: {body!r}"
+        assert body.get("status") != "failed", (
+            f"gate evidence ingestion failed: {body!r}"
+        )
         time.sleep(0.2)
     pytest.fail(f"gate evidence document did not become ready: {last!r}")
 

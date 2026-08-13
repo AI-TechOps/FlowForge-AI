@@ -115,9 +115,9 @@ def test_g3_2_rejection_records_feedback_and_executes_zero_adapter_writes(
     assert persisted.get("approver_user_id") == approver_id, persisted
     assert persisted.get("feedback") == feedback, persisted
     assert original_proposal(persisted) == original_proposal(approval)
-    assert (
-        mock_adapter_control.calls(run_id) == []
-    ), "reject must execute zero mock adapter write calls"
+    assert mock_adapter_control.calls(run_id) == [], (
+        "reject must execute zero mock adapter write calls"
+    )
     ticket_after = object_body(
         phase3_client.get_ticket(phase3_org_id, ticket_id), "ticket"
     )
@@ -158,9 +158,9 @@ def test_g3_3_replayed_approval_is_a_noop_with_one_durable_execution_per_action(
     assert_each_action_called_once(proposal, calls_before)
     assert len(executions_before) == len(calls_before), executions_before
     keys = {(row.get("tool"), row.get("args_hash")) for row in executions_before}
-    assert len(keys) == len(
-        executions_before
-    ), "tool execution idempotency keys are not unique"
+    assert len(keys) == len(executions_before), (
+        "tool execution idempotency keys are not unique"
+    )
     assert all(row.get("result") is not None for row in executions_before)
 
     replay = phase3_client.decide(
@@ -248,9 +248,9 @@ def test_g3_7_concurrent_decisions_have_one_winner_and_no_duplicate_execution(
         responses = [future.result(timeout=30) for future in futures]
 
     statuses = sorted(response.status for response in responses)
-    assert (
-        statuses[0] in {200, 202} and statuses[1] == 409
-    ), f"two concurrent decisions must yield one success and one 409: {statuses!r}"
+    assert statuses[0] in {200, 202} and statuses[1] == 409, (
+        f"two concurrent decisions must yield one success and one 409: {statuses!r}"
+    )
     completed = wait_for_run_status(
         phase3_client,
         org_id=phase3_org_id,

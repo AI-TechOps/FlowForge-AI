@@ -195,9 +195,9 @@ def test_g3_6_persistent_adapter_timeout_retries_then_fails_without_phantom_writ
     assert original_proposal(persisted) == original
     after_response = phase3_client.get_ticket(phase3_org_id, ticket_id)
     assert after_response.status == 200, response_detail(after_response)
-    assert (
-        object_body(after_response, "ticket") == ticket_before
-    ), "adapter timeout produced a phantom ticket write"
-    assert (
-        tool_execution_rows(run_id) == []
-    ), "failed writes must not persist a successful idempotency result"
+    assert object_body(after_response, "ticket") == ticket_before, (
+        "adapter timeout produced a phantom ticket write"
+    )
+    assert tool_execution_rows(run_id) == [], (
+        "failed writes must not persist a successful idempotency result"
+    )

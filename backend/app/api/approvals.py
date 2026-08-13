@@ -3,10 +3,11 @@ from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents import audit
 from app.agents.write_tools import WRITE_TOOLS
 from app.api.deps import current_org_id, current_user_id
 from app.db import get_session
@@ -17,6 +18,12 @@ router = APIRouter()
 
 
 class ProposedActionIn(BaseModel):
+    # extra="allow" so an approver can send the card's action back with only
+    # `args` changed and keep its display context (field, current_value). That
+    # context is what makes the stored decision readable later: "priority
+    # P4 → P3" rather than a bare argument dict.
+    model_config = ConfigDict(extra="allow")
+
     tool: str
     args: dict[str, Any]
 
@@ -78,9 +85,18 @@ async def get_approval(
     ticket = await session.get(Ticket, run.ticket_id) if run else None
     output = (run.output if run else None) or {}
 
+    actions = approval.original_proposal or []
     return {
         **_approval_summary(approval),
-        "proposed_actions": approval.original_proposal,
+        "proposed_actions": actions,
+        # Same list under the column's own name, so the audit contract and the
+        # card speak the same language (spec 04 §5).
+        "original_proposal": actions,
+        # New vs existing, side by side. The MVP approval card requires both:
+        # "change priority to P1" is not reviewable without knowing it is
+        # currently P4.
+        "new_values": {a.get("field"): a.get("new_value") for a in actions},
+        "existing_values": {a.get("field"): a.get("current_value") for a in actions},
         "final_values": approval.final_values,
         "feedback": approval.feedback,
         "agent_version": run.agent_version if run else None,
@@ -142,6 +158,24 @@ async def decide(
         raise HTTPException(status_code=409, detail="approval has already been decided")
     await session.commit()
 
+    # The human decision is itself an auditable event, and it is the one entry
+    # that carries BOTH what the agent proposed and what the human authorised
+    # (G3.4). Without it the trail shows the writes but not who sanctioned them
+    # or what they changed on the way through.
+    await audit.record(
+        org_id=org_id,
+        run_id=approval.run_id,
+        actor=f"user:{user_id}",
+        tool="approval.decision",
+        payload={
+            "decision": payload.decision.value,
+            "original_proposal": approval.original_proposal,
+            "final_values": final_values,
+            "feedback": payload.feedback,
+        },
+        result={"approval_id": str(approval_id)},
+    )
+
     # Enqueued only after the decision is durably committed: a resume that ran
     # before the commit could read a still-pending approval and do nothing.
     await enqueue_resume(approval.run_id, org_id)
@@ -169,5 +203,9 @@ def _validate_edits(actions: list[ProposedActionIn]) -> list[dict[str, Any]]:
             raise HTTPException(
                 status_code=422, detail=f"invalid arguments for {action.tool}: {exc}"
             ) from exc
-        validated.append({"tool": action.tool, "args": args.model_dump(mode="json")})
+        # Preserve everything the approver sent, but substitute the *validated*
+        # arguments so the stored decision is exactly what will execute.
+        stored = action.model_dump(mode="json")
+        stored["args"] = args.model_dump(mode="json")
+        validated.append(stored)
     return validated

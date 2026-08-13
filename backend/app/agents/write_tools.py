@@ -28,6 +28,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
+from app.agents import audit
 from app.agents.taxonomy import Priority, Team
 from app.agents.tools import Tool, ToolContext, register
 from app.config import get_settings
@@ -129,7 +130,7 @@ async def _execute_once(
         ).scalar_one()
         return {"result": winner.result, "idempotent_replay": True}
 
-    adapter = get_ticket_system(context.session)
+    adapter = get_ticket_system(context.session, run_id=context.run_id)
     settings = get_settings()
     last_error: Exception | None = None
 
@@ -165,6 +166,18 @@ async def _execute_once(
     ledger.result = state
     ledger.confirmed = True
     await context.session.flush()
+
+    # Record the confirmation as its own audit entry (spec 04 §3). The write
+    # and the proof the write landed are separate facts: an audit trail that
+    # only says "we called assign_ticket" cannot answer "did it take effect?".
+    await audit.record(
+        org_id=context.org_id,
+        run_id=context.run_id,
+        actor=context.actor,
+        tool=f"{tool_name}.confirm",
+        payload={"expected": {confirmation.field_name: confirmation.expected}},
+        result={"confirmed": True, "ticket": confirmed_state},
+    )
     return {"result": state, "confirmed": True, "idempotent_replay": False}
 
 

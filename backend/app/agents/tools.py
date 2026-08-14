@@ -36,6 +36,11 @@ class ToolContext:
     org_id: uuid.UUID
     run_id: uuid.UUID | None = None
     actor: str = "agent"
+    # Set ONLY by the approval resume path, after loading a decided approval.
+    # Default False so an approval-gated tool refuses by default: the safety
+    # property should not depend on every future caller happening to reach the
+    # tool through the right graph edge.
+    approval_granted: bool = False
 
 
 class ToolPermissionError(RuntimeError):

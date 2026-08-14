@@ -36,6 +36,12 @@ class Approval(TenantBase, TimestampMixin, Base):
     """
 
     __tablename__ = "approvals"
+    # D17 decision 2 is one bundled approval per run. Enforced here rather
+    # than by the unlocked read-then-insert in _pause_for_approval: a
+    # redelivered or concurrent initial job could otherwise have both
+    # observed "no approval" and inserted, and resume_run's
+    # scalar_one_or_none() assumes that cannot happen.
+    __table_args__ = (UniqueConstraint("run_id", name="uq_approvals_run"),)
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     run_id: Mapped[uuid.UUID] = mapped_column(

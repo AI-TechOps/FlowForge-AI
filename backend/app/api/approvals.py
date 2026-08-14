@@ -135,7 +135,12 @@ async def decide(
     if payload.decision == Decision.edited:
         if not payload.final_values:
             raise HTTPException(status_code=422, detail="edited decisions require final_values")
-        final_values = _validate_edits(payload.final_values)
+        run = await session.get(Run, approval.run_id)
+        final_values = _validate_edits(
+            payload.final_values,
+            allowed_ticket_id=run.ticket_id if run else None,
+            allowed_tools={a.get("tool") for a in (approval.original_proposal or [])},
+        )
 
     # The one-shot rule (G3.7) as a single compare-and-swap: the UPDATE only
     # matches while the row is still pending, so two concurrent requests cannot
@@ -183,12 +188,24 @@ async def decide(
     return _approval_summary(approval)
 
 
-def _validate_edits(actions: list[ProposedActionIn]) -> list[dict[str, Any]]:
-    """Validate each edited action against its own tool's Pydantic schema.
+def _validate_edits(
+    actions: list[ProposedActionIn],
+    *,
+    allowed_ticket_id: uuid.UUID | None,
+    allowed_tools: set[str | None],
+) -> list[dict[str, Any]]:
+    """Validate each edited action, and bind it to what was actually proposed.
 
-    Rejecting here means an invalid edit never reaches the resumed graph, so a
-    bad edit is a 422 on the approver's request rather than a run that fails
-    halfway through the write path (G3.4).
+    Schema validity is not enough. "Edit" means *adjust the values on this
+    card*, not *submit an arbitrary write request*: an approver looking at
+    ticket A must not be able to authorise a write against ticket B, nor invoke
+    a tool that was never proposed and never risk-classified. Without these
+    bounds the approval card stops describing what the decision authorises,
+    and the human-in-the-loop is reviewing one thing while approving another.
+
+    Rejecting here also means an invalid edit never reaches the resumed graph,
+    so a bad edit is a 422 on the approver's request rather than a run that
+    fails halfway through the write path (G3.4).
     """
     validated: list[dict[str, Any]] = []
     for action in actions:
@@ -196,6 +213,23 @@ def _validate_edits(actions: list[ProposedActionIn]) -> list[dict[str, Any]]:
         if tool is None:
             raise HTTPException(
                 status_code=422, detail=f"{action.tool} is not an approvable write tool"
+            )
+        if action.tool not in allowed_tools:
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    f"{action.tool} was not part of the proposal under review; "
+                    "an edit may adjust proposed actions, not add new ones"
+                ),
+            )
+        edited_ticket = action.args.get("ticket_id")
+        if allowed_ticket_id is not None and str(edited_ticket) != str(allowed_ticket_id):
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    "edited actions must target the ticket shown on the approval "
+                    f"card ({allowed_ticket_id}), not {edited_ticket}"
+                ),
             )
         try:
             args = tool.args_model.model_validate(action.args)

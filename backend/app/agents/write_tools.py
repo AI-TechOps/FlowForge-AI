@@ -30,7 +30,7 @@ from sqlalchemy.exc import IntegrityError
 
 from app.agents import audit
 from app.agents.taxonomy import Priority, Team
-from app.agents.tools import Tool, ToolContext, register
+from app.agents.tools import Tool, ToolContext, ToolPermissionError, register
 from app.config import get_settings
 from app.integrations.ticket_system import (
     TicketNotFound,
@@ -142,6 +142,19 @@ async def _execute_once(
         except (TicketSystemError, TimeoutError) as exc:
             # Transport-shaped only. A confirmed write never reaches here.
             last_error = exc
+            # A timeout is ambiguous — the remote may have committed and lost
+            # the response. Our ledger guards *our* re-execution, not the
+            # remote's state, so retrying can still double-apply. Only retry a
+            # timeout against an adapter that says a replay is safe.
+            ambiguous = isinstance(exc, TimeoutError) and not getattr(
+                adapter, "supports_idempotent_retry", False
+            )
+            if ambiguous:
+                raise WriteToolError(
+                    f"{tool_name} timed out with an indeterminate outcome and "
+                    f"{type(adapter).__name__} does not support safe replay; "
+                    f"not retrying: {exc}"
+                ) from exc
             if attempt == MAX_WRITE_ATTEMPTS:
                 raise WriteToolError(f"{tool_name} failed after {attempt} attempts: {exc}") from exc
             await asyncio.sleep(WRITE_BACKOFF_SECONDS * attempt)
@@ -221,12 +234,32 @@ async def _add_internal_note(context: ToolContext, args: AddNoteArgs) -> dict[st
     )
 
 
+def require_granted_approval(context: ToolContext, args: BaseModel) -> None:
+    """Refuse a gated write unless a human decision authorised this run.
+
+    `requires_approval=True` was previously passive metadata — `Tool.invoke`
+    only runs a non-null `permission_check` — so any caller holding a
+    ToolContext could execute a write directly. The graph happens to reach
+    these tools only after the interrupt, but "happens to" is not a control.
+
+    Fail-closed: the flag is set solely by the resume path after it loads a
+    decided approval, so a new caller gets a refusal rather than a write.
+    """
+    del args
+    if not context.approval_granted:
+        raise ToolPermissionError(
+            "write tools require an approved human decision for this run; "
+            "the acting context carries no granted approval"
+        )
+
+
 assign_ticket = Tool(
     name="assign_ticket",
     description="Assign the ticket to a team. Requires human approval.",
     args_model=AssignTicketArgs,
     handler=_assign_ticket,
     requires_approval=True,
+    permission_check=require_granted_approval,
 )
 
 change_ticket_priority = Tool(
@@ -235,6 +268,7 @@ change_ticket_priority = Tool(
     args_model=ChangePriorityArgs,
     handler=_change_ticket_priority,
     requires_approval=True,
+    permission_check=require_granted_approval,
 )
 
 add_internal_note = Tool(
@@ -243,6 +277,7 @@ add_internal_note = Tool(
     args_model=AddNoteArgs,
     handler=_add_internal_note,
     requires_approval=True,
+    permission_check=require_granted_approval,
 )
 
 WRITE_TOOLS = {

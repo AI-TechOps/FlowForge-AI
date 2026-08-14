@@ -15,10 +15,13 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import current_org_id
 from app.config import get_settings
+from app.db import get_session
 from app.integrations.ticket_system import clear_fault, recorded_calls, set_fault
+from app.models import Run
 
 router = APIRouter()
 
@@ -38,14 +41,23 @@ class FaultIn(BaseModel):
 @router.get(f"{BASE}/calls")
 async def list_adapter_calls(
     run_id: uuid.UUID = Query(...),
-    _org_id: uuid.UUID = Depends(current_org_id),
+    org_id: uuid.UUID = Depends(current_org_id),
+    session: AsyncSession = Depends(get_session),
 ) -> dict[str, list[dict[str, Any]]]:
     """Every adapter call made for a run, in order.
 
     Includes reads: G3.5 needs to see the confirmation re-fetch, not just the
     write it confirms.
+
+    The run is resolved under the acting organization first. The Redis key is
+    keyed only by run id, so without this check one tenant could read another's
+    write trace — ticket ids, teams, priorities, note bodies. The endpoint is
+    dev-only, but D7's tenant boundary should hold in shared dev and CI too.
     """
     _guard()
+    run = await session.get(Run, run_id)
+    if run is None or run.org_id != org_id:
+        raise HTTPException(status_code=404, detail="run not found")
     return {"calls": await recorded_calls(run_id)}
 
 

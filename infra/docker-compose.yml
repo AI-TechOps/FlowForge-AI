@@ -30,6 +30,7 @@ services:
 
   backend:
     build: ../backend
+    restart: unless-stopped
     environment:
       DATABASE_URL: postgresql+asyncpg://flowforge:flowforge@db:5432/flowforge
       REDIS_URL: redis://redis:6379/0
@@ -54,6 +55,10 @@ services:
   worker:
     build: ../backend
     command: ["arq", "app.worker.WorkerSettings"]
+    # arq exits when it loses Redis. Without a restart policy the worker
+    # stays dead after a blip and nothing processes runs again — the
+    # background half of the system silently disappears.
+    restart: unless-stopped
     environment:
       DATABASE_URL: postgresql+asyncpg://flowforge:flowforge@db:5432/flowforge
       REDIS_URL: redis://redis:6379/0

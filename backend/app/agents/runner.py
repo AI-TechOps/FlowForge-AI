@@ -126,6 +126,9 @@ async def resume_run(ctx: dict[str, Any], run_id: str, org_id: str) -> str:
             org_id=org_uuid,
             run_id=run_uuid,
             actor=f"user:{approval.approver_user_id}",
+            # The single place a gated write is authorised: a decided approval
+            # has just been loaded for this run.
+            approval_granted=True,
         )
         try:
             async with checkpointer() as saver:
@@ -156,6 +159,18 @@ async def resume_run(ctx: dict[str, Any], run_id: str, org_id: str) -> str:
         return await _finalize_decision(session, run, state)
 
 
+async def reconcile_runs(ctx: dict[str, Any]) -> int:
+    """Periodic reconciler (arq cron).
+
+    Startup-only recovery is not enough: the outage that strands a decision
+    need not involve the worker restarting at all. Redis can go away and come
+    back while the worker stays up the whole time, so nothing ever re-reads the
+    durable state. This runs on a schedule and makes Postgres — not the queue —
+    the authority on what still needs doing.
+    """
+    return await recover_stranded_runs()
+
+
 async def recover_stranded_runs() -> int:
     """Re-enqueue runs whose worker died mid-execute (spec 04 §4).
 
@@ -164,9 +179,15 @@ async def recover_stranded_runs() -> int:
     its idempotency key first: the completed ones return their stored result
     and only the unfinished ones touch the adapter (G3.3).
 
-    Runs in `awaiting_approval` are deliberately NOT recovered — they are
-    waiting on a human, not on us, and that wait is allowed to be arbitrarily
-    long. That is the difference between a stalled run and a paused one.
+    Also recovers runs left in `awaiting_approval` whose approval is already
+    *decided*. The decision is committed before the resume is enqueued, so a
+    queue outage in that window leaves an irreversible decision with nothing to
+    act on it — and the approver cannot retry, because a second decision is
+    correctly refused with 409. Waiting on a human is fine; waiting on a queue
+    that already dropped the message is not.
+
+    A run in `awaiting_approval` with a *pending* approval is untouched: that
+    one really is waiting on a person, for as long as it takes.
     """
     settings = get_settings()
     cutoff = datetime.now(UTC) - timedelta(seconds=settings.run_timeout_seconds)
@@ -187,7 +208,26 @@ async def recover_stranded_runs() -> int:
             for run in stranded:
                 logger.warning("recovering run %s stranded in executing", run.id)
                 await enqueue_resume(run.id, run.org_id)
-            return len(stranded)
+
+            # Decided-but-unresumed: the CAS committed, the enqueue did not.
+            orphaned = (
+                (
+                    await session.execute(
+                        select(Run)
+                        .join(Approval, Approval.run_id == Run.id)
+                        .where(
+                            Run.status == RunStatus.awaiting_approval,
+                            Approval.status == ApprovalStatus.decided,
+                        )
+                    )
+                )
+                .scalars()
+                .all()
+            )
+            for run in orphaned:
+                logger.warning("recovering run %s: decided approval never resumed", run.id)
+                await enqueue_resume(run.id, run.org_id)
+            return len(stranded) + len(orphaned)
     except Exception:  # noqa: BLE001 - recovery is best-effort housekeeping
         # A worker that refuses to start because a *recovery* query failed is
         # strictly worse than one that starts without recovering. This fires on

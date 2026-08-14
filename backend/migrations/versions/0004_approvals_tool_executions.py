@@ -69,6 +69,9 @@ def upgrade() -> None:
             server_default="low",
         ),
         sa.Column("decided_at", sa.DateTime(timezone=True)),
+        # One bundled approval per run (D17 decision 2), enforced by the
+        # database so a redelivered initial job cannot insert a second.
+        sa.UniqueConstraint("run_id", name="uq_approvals_run"),
         sa.Column(
             "created_at",
             sa.DateTime(timezone=True),

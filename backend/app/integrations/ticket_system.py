@@ -139,6 +139,22 @@ async def _take_injected_fault() -> str | None:
 
 
 class TicketSystemAdapter(ABC):
+    # Whether a *timed-out* write may be retried.
+    #
+    # A timeout is ambiguous: the remote may have committed and lost the
+    # response. Retrying then applies the change twice, and our local ledger
+    # cannot prevent it — the ledger guards *our* re-execution, not the remote's
+    # state. So retry-on-timeout is opt-in, and the default is the safe answer.
+    #
+    # An adapter may set this True only if a replayed write is genuinely a
+    # no-op remotely: because it is transactional against a store we own (the
+    # mock), or because it forwards an idempotency key the remote honours. The
+    # `run_id` passed to the adapter is a stable basis for such a key.
+    #
+    # `TicketSystemError` is different — it means the call did not land — and
+    # is always retryable.
+    supports_idempotent_retry: bool = False
+
     @abstractmethod
     async def get_ticket(self, ticket_id: uuid.UUID, org_id: uuid.UUID) -> dict[str, Any]: ...
 
@@ -166,6 +182,10 @@ class MockTicketSystem(TicketSystemAdapter):
     changed. A real adapter would call an API instead; the contract is the same.
     """
 
+    # Safe: writes are transactional against our own database, so a replayed
+    # write converges on the same row rather than applying twice.
+    supports_idempotent_retry = True
+
     def __init__(
         self,
         session: AsyncSession,
@@ -188,6 +208,13 @@ class MockTicketSystem(TicketSystemAdapter):
     async def _maybe_fail(self, ticket: Ticket) -> None:
         # Precedence: an explicitly injected fault (test hook) beats a
         # per-ticket directive, which beats the process default.
+        # Fault injection is a dev/CI facility and must be completely inert in
+        # prod. The directive travels in *user-controlled ticket text*, so
+        # leaving it live would let anyone who can file a ticket make every
+        # approved write against it fail.
+        if get_settings().app_env == "prod":
+            return
+
         mode = await _take_injected_fault()
         if mode is None:
             mode = get_settings().mock_ticket_fault

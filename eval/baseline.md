@@ -93,6 +93,18 @@ model. Ollama's grammar compiler accepts it and silently ignores it — measured
 arrays outright, so it would also have broken the OpenAI path. Recorded so it
 is not retried.
 
+### Scoring basis (aligned in Phase 3)
+
+Both the gate and `scripts/eval_baseline.py` now divide by **every ticket
+attempted**, not by completed runs. A run that fails `ungrounded` is a failure
+to triage, not a sample to drop — scoring only completed runs would let an
+agent that fails half its tickets report a flattering number, and would hide a
+regression that shows up as more failures rather than more wrong answers.
+
+Both also count a run resting at `awaiting_approval` as scoreable: from Phase 3
+a successful triage pauses there for a human with its output final. Without
+that, every eval after Phase 3 would have reported 0%.
+
 ### Reading this number honestly
 
 - **75% is a one-ticket margin.** Each of 20 tickets is worth 5 points, so this

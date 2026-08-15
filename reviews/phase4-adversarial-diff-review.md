@@ -6,6 +6,84 @@
 **Diff reviewed:** `origin/main...HEAD` (9 commits, 44 files)
 **Routing:** Advisory findings for FlowForge code owners under spec 10. No runtime code was changed.
 
+## Remediation rerun — `3d4c9a8`
+
+Claude's remediation makes every original executable probe green. I judged the
+changes to the Codex-owned files independently: the Phase 4 test-file edits are
+Ruff formatting only, and the adversarial fixture now requires an explicit
+`PHASE4_DATABASE_URL` instead of accidentally falling back to CI's migration
+scratch database. No assertion or expected result was weakened.
+
+```text
+Phase 4 gates:                  57 passed
+Original adversarial probes:    9 passed
+Expanded adversarial probes:    9 passed, 3 failed
+```
+
+The original findings 1-8 are fixed in the tested local-provider stack. The
+Auth0 route remains subject to the spec's known-open real-tenant validation;
+the remediation now uses verified `/userinfo` data when an API token does not
+carry email, which resolves the configuration defect found in the cold review.
+
+Two residual findings remain:
+
+### Finding 9 — HIGH: the recovery claim lets a duplicate delivery execute an active run
+
+`backend/app/agents/runner.py:73-85` permits the initial job to claim both
+`queued` and `running`. The latter was added so a recovery enqueue can restart
+a worker-killed job, but there is no recovery lease, generation, age predicate,
+or transition that distinguishes a stranded run from one another worker is
+currently processing.
+
+The deterministic probe seeded a fresh `running` run (attempt 1) and delivered
+one duplicate initial job. The duplicate incremented the attempt, invoked the
+graph, changed the run to `awaiting_approval`, and created an approval. It
+should have returned the existing `running` status without invoking the graph.
+
+The resume path has the same defect at `runner.py:156-160`: it accepts
+`executing`, writes `executing` again, and enters the graph without a CAS. A
+second probe seeded a fresh active execution with its decided approval; the
+duplicate resume entered the graph and changed the run to `rejected`.
+
+This is reachable without a malicious queue producer: concurrent reconcilers
+can both select the same old `running` row and enqueue it because recovery does
+not claim/change the row before enqueueing. The resulting deliveries can both
+claim `running`. Multiple worker replicas or a redelivery can therefore execute
+the same graph concurrently, consume attempts, create duplicate side effects,
+or race terminal status writes.
+
+Recovery needs an atomic ownership transition/lease. Ordinary `execute_run`
+deliveries should claim only that recovery state (or `queued`), never every
+`running` row.
+
+Failing probe:
+`test_phase4_duplicate_execute_delivery_cannot_claim_an_active_run` and
+`test_phase4_duplicate_resume_delivery_cannot_claim_an_active_execution`.
+
+### Finding 10 — HIGH: worker finalization mutates a foreign tenant's ticket
+
+`backend/app/agents/runner.py:379-381` follows `run.ticket_id` with an unscoped
+`session.get(Ticket, ...)`, then sets the returned ticket to `actioned`. The
+schema still permits an org-A run to reference an org-B ticket because the
+foreign key covers only `ticket_id`, not `(org_id, ticket_id)`.
+
+The probe inserted that inconsistent relationship and finalized the A run.
+The B ticket changed from `new` to `actioned`. This is the write-side version
+of original finding 1: application-layer tenant enforcement must scope every
+relationship hop because the database does not enforce tenant-consistent
+foreign keys.
+
+The new automated guard reports success despite this exact direct unscoped
+tenant load. `scripts/check_tenant_scoping.py:10-19,31-52` deliberately scans
+only `backend/app/api/` and excludes workers, while spec 05 section 3 requires
+an automated check that flags direct unscoped queries on tenant models and
+section 4 says workers enforce the same scoping. The exclusion is therefore
+not just a coverage preference; it allows the demonstrated cross-tenant write
+to pass CI.
+
+Failing probe:
+`test_phase4_worker_finalization_cannot_mutate_a_foreign_ticket`.
+
 ## Oracle and scope
 
 I read `specs/05-phase4-auth-tenant.md` and D18 before the implementation
@@ -22,7 +100,7 @@ blocking product evidence, I ran an equivalent native backend and worker from
 an isolated `/private/tmp` virtualenv against the compose Postgres and Redis.
 No repository dependency or runtime file was changed for that workaround.
 
-## Result summary
+## Initial result summary — `40811ba`
 
 Phase 4 gates against the local-provider/fake-LLM stack:
 

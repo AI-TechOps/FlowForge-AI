@@ -20,9 +20,7 @@ from tests.phase4.conftest import (
 
 def _asyncpg_url(database_url: str) -> str:
     parsed = urlsplit(database_url)
-    return urlunsplit(
-        ("postgresql", parsed.netloc, parsed.path, parsed.query, parsed.fragment)
-    )
+    return urlunsplit(("postgresql", parsed.netloc, parsed.path, parsed.query, parsed.fragment))
 
 
 async def _insert_user(
@@ -122,6 +120,20 @@ async def _run_state(database_url: str, run_id: str) -> tuple[str, str | None, i
         await connection.close()
     assert row is not None
     return str(row["status"]), row["failure_reason"], int(approval_count)
+
+
+async def _ticket_status(database_url: str, ticket_id: str) -> str:
+    import asyncpg
+
+    connection = await asyncpg.connect(_asyncpg_url(database_url))
+    try:
+        status = await connection.fetchval(
+            "SELECT status FROM tickets WHERE id = $1", UUID(ticket_id)
+        )
+    finally:
+        await connection.close()
+    assert status is not None
+    return str(status)
 
 
 def test_phase4_role_claim_injection_cannot_elevate_an_operator(
@@ -285,6 +297,148 @@ def test_phase4_duplicate_execute_delivery_cannot_reopen_a_terminal_run(
     assert approvals == 0, "a duplicate initial job created a new approval"
 
 
+def test_phase4_duplicate_execute_delivery_cannot_claim_an_active_run(
+    phase4_database_url: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A recovery claim must be distinguishable from a still-active worker."""
+    from app.agents import runner
+
+    marker = f"active-replay-{uuid4().hex}"
+    org_id = str(uuid4())
+
+    async def seed() -> str:
+        import asyncpg
+
+        connection = await asyncpg.connect(_asyncpg_url(phase4_database_url))
+        try:
+            await connection.execute(
+                "INSERT INTO organizations (id, name) VALUES ($1, $2)",
+                UUID(org_id),
+                f"Phase 4 active replay {marker}",
+            )
+        finally:
+            await connection.close()
+        _, run_id = await _insert_ticket_run(
+            phase4_database_url,
+            org_id=org_id,
+            marker=marker,
+            status="running",
+            attempts=1,
+        )
+        return run_id
+
+    run_id = asyncio.run(seed())
+
+    @asynccontextmanager
+    async def fake_checkpointer():
+        yield object()
+
+    class DuplicateGraph:
+        async def ainvoke(self, state: object, config: object) -> dict[str, object]:
+            del state, config
+            return {
+                "__interrupt__": [{"value": "duplicate"}],
+                "evidence": [],
+                "result": {"summary": marker, "citations": []},
+                "confidence": 1.0,
+                "proposed_actions": [],
+                "risk_class": "low",
+            }
+
+    monkeypatch.setattr(runner, "checkpointer", fake_checkpointer)
+    monkeypatch.setattr(runner, "build_graph", lambda saver: DuplicateGraph())
+
+    async def exercise_duplicate() -> tuple[str, str, int]:
+        from app.db import engine
+
+        try:
+            result = await runner.execute_run({}, run_id, org_id)
+            status, _, approvals = await _run_state(phase4_database_url, run_id)
+            return result, status, approvals
+        finally:
+            await engine.dispose()
+
+    result, status, approvals = asyncio.run(exercise_duplicate())
+    assert result == "running", "a duplicate delivery claimed a run already in progress"
+    assert status == "running"
+    assert approvals == 0, "the duplicate active delivery created an approval"
+
+
+def test_phase4_duplicate_resume_delivery_cannot_claim_an_active_execution(
+    phase4_database_url: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A second resume must not enter a graph another worker is executing."""
+    from app.agents import runner
+
+    marker = f"active-resume-{uuid4().hex}"
+    org_id = str(uuid4())
+
+    async def seed() -> str:
+        import asyncpg
+
+        connection = await asyncpg.connect(_asyncpg_url(phase4_database_url))
+        try:
+            await connection.execute(
+                "INSERT INTO organizations (id, name) VALUES ($1, $2)",
+                UUID(org_id),
+                f"Phase 4 active resume {marker}",
+            )
+        finally:
+            await connection.close()
+        _, run_id = await _insert_ticket_run(
+            phase4_database_url,
+            org_id=org_id,
+            marker=marker,
+            status="executing",
+        )
+        connection = await asyncpg.connect(_asyncpg_url(phase4_database_url))
+        try:
+            await connection.execute(
+                """
+                INSERT INTO approvals (
+                    id, org_id, run_id, status, decision, original_proposal, decided_at
+                )
+                VALUES ($1, $2, $3, 'decided', 'rejected', '[]'::jsonb, now())
+                """,
+                uuid4(),
+                UUID(org_id),
+                UUID(run_id),
+            )
+        finally:
+            await connection.close()
+        return run_id
+
+    run_id = asyncio.run(seed())
+
+    @asynccontextmanager
+    async def fake_checkpointer():
+        yield object()
+
+    class DuplicateGraph:
+        async def ainvoke(self, command: object, config: object) -> dict[str, object]:
+            del command, config
+            return {"rejected": True}
+
+    monkeypatch.setattr(runner, "checkpointer", fake_checkpointer)
+    monkeypatch.setattr(runner, "build_graph", lambda saver: DuplicateGraph())
+
+    async def exercise_duplicate() -> tuple[str, str]:
+        from app.db import engine
+
+        try:
+            result = await runner.resume_run({}, run_id, org_id)
+            status, _, _ = await _run_state(phase4_database_url, run_id)
+            return result, status
+        finally:
+            await engine.dispose()
+
+    result, status = asyncio.run(exercise_duplicate())
+    assert result == "executing", "a duplicate resume entered an active graph"
+    assert status == "executing"
+
+
 def test_phase4_recovery_handles_running_jobs_and_dead_letter_boundary(
     phase4_database_url: str,
     monkeypatch: pytest.MonkeyPatch,
@@ -341,9 +495,7 @@ def test_phase4_recovery_handles_running_jobs_and_dead_letter_boundary(
 
         try:
             await runner.recover_stranded_runs()
-            status, failure_reason, _ = await _run_state(
-                phase4_database_url, exhausted_id
-            )
+            status, failure_reason, _ = await _run_state(phase4_database_url, exhausted_id)
             return status, failure_reason
         finally:
             await engine.dispose()
@@ -361,6 +513,74 @@ def test_phase4_recovery_handles_running_jobs_and_dead_letter_boundary(
             f"{status}/{failure_reason} instead of failed/dead_letter"
         )
     assert not failures, "; ".join(failures)
+
+
+def test_phase4_worker_finalization_cannot_mutate_a_foreign_ticket(
+    phase4_database_url: str,
+) -> None:
+    """Worker relationship hops need org scoping just like API relationship hops."""
+    from app.agents import runner
+
+    run_org_id = uuid4()
+    ticket_org_id = uuid4()
+    ticket_id = uuid4()
+    run_id = uuid4()
+
+    async def seed() -> None:
+        import asyncpg
+
+        connection = await asyncpg.connect(_asyncpg_url(phase4_database_url))
+        try:
+            await connection.executemany(
+                "INSERT INTO organizations (id, name) VALUES ($1, $2)",
+                [
+                    (run_org_id, f"Phase 4 worker run org {run_org_id}"),
+                    (ticket_org_id, f"Phase 4 worker ticket org {ticket_org_id}"),
+                ],
+            )
+            await connection.execute(
+                """
+                INSERT INTO tickets (id, org_id, title, description, priority)
+                VALUES ($1, $2, 'Foreign ticket', 'Must remain untouched', 'P4')
+                """,
+                ticket_id,
+                ticket_org_id,
+            )
+            await connection.execute(
+                """
+                INSERT INTO runs (id, org_id, ticket_id, status, agent_version, output)
+                VALUES ($1, $2, $3, 'executing', 'phase4-adversarial', '{}'::jsonb)
+                """,
+                run_id,
+                run_org_id,
+                ticket_id,
+            )
+        finally:
+            await connection.close()
+
+    async def exercise_finalization() -> str:
+        from app.db import async_session_factory, engine
+        from app.models import Run
+
+        try:
+            async with async_session_factory() as session:
+                run = await session.get(Run, run_id)
+                assert run is not None
+                await runner._finalize_decision(
+                    session,
+                    run,
+                    {"executed_actions": []},
+                )
+            return await _ticket_status(phase4_database_url, str(ticket_id))
+        finally:
+            await engine.dispose()
+
+    asyncio.run(seed())
+    status = asyncio.run(exercise_finalization())
+    assert status == "new", (
+        "finalizing an org-A run followed its unscoped ticket_id and changed "
+        "org B's ticket to actioned"
+    )
 
 
 def test_phase4_background_job_payloads_carry_the_acting_user() -> None:
@@ -412,9 +632,9 @@ def test_phase4_auth0_pkce_callback_is_bound_to_the_login_with_state(
 ) -> None:
     source = (repository_root / "frontend" / "src" / "auth.ts").read_text()
     assert "state:" in source, "the Auth0 authorize request sends no state nonce"
-    assert '.get("state")' in source or ".get('state')" in source, (
-        "the Auth0 callback never reads the returned state"
-    )
+    assert (
+        '.get("state")' in source or ".get('state')" in source
+    ), "the Auth0 callback never reads the returned state"
     assert "STATE_KEY" in source, "the expected state is not persisted and compared"
 
 

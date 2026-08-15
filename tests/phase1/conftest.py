@@ -16,6 +16,8 @@ from uuid import UUID, uuid4
 
 import pytest
 
+from tests.support.auth import gate_database_url, token_for_org
+
 DEFAULT_BASE_URL = "http://localhost:8000"
 DEFAULT_ORG_HEADER = "X-Org-ID"
 
@@ -46,6 +48,12 @@ class Phase1Client:
         headers: dict[str, str] = {}
         if org_id:
             headers[self.org_header] = org_id
+            # Phase 4: org_id now comes from the authenticated principal, so
+            # the header above no longer selects a tenant. It is left in place
+            # deliberately -- G4.5 proves it is ignored rather than honoured.
+            headers["Authorization"] = "Bearer " + token_for_org(
+                self.base_url, gate_database_url(), org_id
+            )
             separator = "&" if "?" in path else "?"
             path = f"{path}{separator}{urlencode({'org_id': org_id})}"
         if json_body is not None:

@@ -149,14 +149,31 @@ def test_seed_script_creates_demo_org_admin_and_role(
     )
     assert result.returncode == 0, result.stdout + result.stderr
 
-    seeded_rows = _query(
+    # Phase 4 (spec 05 §5) replaced the single admin@demo with four seeded
+    # identities: three distinct personas plus an all-roles user for recording
+    # the demo. Two of them therefore hold `administrator`, so the original
+    # count-of-one assertion no longer describes the approved seed.
+    #
+    # Checking the grants per email rather than loosening the count to ">= 1":
+    # the property Phase 0 cared about was that seeding produces a usable
+    # administrator, and the property Phase 4 adds is that operator and
+    # approver are *different people* (D4) so the hand-off is demonstrable.
+    # Both are asserted here.
+    granted = _query(
         migrated_scratch_database,
         """
-        SELECT count(*)
+        SELECT u.email || ':' || ur.role::text
         FROM organizations AS o
         JOIN users AS u ON u.org_id = o.id
         JOIN user_roles AS ur ON ur.user_id = u.id
-        WHERE ur.role::text = 'administrator';
+        ORDER BY 1;
         """,
     )
-    assert seeded_rows == ["1"]
+    assert granted == [
+        "admin@demo:administrator",
+        "approver@demo:approver",
+        "demo@demo:administrator",
+        "demo@demo:approver",
+        "demo@demo:operator",
+        "operator@demo:operator",
+    ]

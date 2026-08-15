@@ -58,8 +58,11 @@ async def current_principal(
     unrecognised identity from a valid token is a real principal we simply do
     not know, which is exactly the case 403 describes.
     """
+    provider = get_auth_provider()
+    token = None
     try:
-        claims = get_auth_provider().verify(bearer_token(authorization))
+        token = bearer_token(authorization)
+        claims = provider.verify(token)
     except InvalidToken as exc:
         raise UNAUTHENTICATED from exc
 
@@ -72,7 +75,18 @@ async def current_principal(
     ).scalar_one_or_none()
 
     if user is None:
-        user = await _link_first_login(session, claims.subject, claims.email)
+        email, verified = claims.email, claims.email_verified
+        if not email:
+            # An access token for a custom API carries authorization data, not
+            # profile data — Auth0 puts `email` in the ID token, which the
+            # frontend never sends us. Ask the provider directly. Only ever
+            # reached once per user, at first login.
+            email, verified = await provider.userinfo(token)
+        if not verified:
+            # The IdP will not vouch for this address. Linking anyway would let
+            # someone who registers your email there claim your FlowForge user.
+            raise HTTPException(status_code=403, detail="no FlowForge account for this identity")
+        user = await _link_first_login(session, claims.subject, email)
 
     return Principal(
         user_id=user.id,
@@ -84,24 +98,28 @@ async def current_principal(
 
 
 async def _link_first_login(session: AsyncSession, subject: str, email: str | None) -> User:
-    """Bind an Auth0 subject to the seeded user with a matching email."""
+    """Bind an identity provider subject to the seeded user with that email."""
     if not email:
-        # A token with no email claim can never be matched to a seeded user,
-        # so there is nothing to link and no account to create.
+        # No email claim, nothing to match on. `AuthProvider.identity` has
+        # already tried the provider's own userinfo endpoint by this point, so
+        # this really is an identity we cannot place.
         raise HTTPException(status_code=403, detail="no FlowForge account for this identity")
 
     # Emails are unique per organization, not globally (uq_users_org_email), so
     # the same address can exist in two tenants. Linking would then have to
     # guess which org the login belongs to, and a wrong guess hands one
-    # tenant's data to another's user. Refuse instead: fetching two rows is
-    # enough to detect the ambiguity.
+    # tenant's data to another tenant's user. Refuse instead.
+    #
+    # Every row with this address counts, linked or not. Filtering to unlinked
+    # rows looked like "find the one still waiting to be claimed" and was a
+    # hole: with org A's row already linked, an unlinked org B row with the
+    # same address became the *only* candidate, so a second subject silently
+    # bound to a different tenant — the multi-org login that is explicitly out
+    # of scope (Codex Phase 4 finding 5).
     candidates = (
         (
             await session.execute(
-                select(User)
-                .where(User.email == email, User.auth_subject.is_(None))
-                .options(selectinload(User.roles))
-                .limit(2)
+                select(User).where(User.email == email).options(selectinload(User.roles)).limit(2)
             )
         )
         .scalars()
@@ -109,7 +127,12 @@ async def _link_first_login(session: AsyncSession, subject: str, email: str | No
     )
     if len(candidates) != 1:
         raise HTTPException(status_code=403, detail="no FlowForge account for this identity")
+
     user = candidates[0]
+    if user.auth_subject is not None:
+        # Claimed by a different subject. Re-binding would let anyone who can
+        # get the provider to assert this address take over the account.
+        raise HTTPException(status_code=403, detail="no FlowForge account for this identity")
 
     user.auth_subject = subject
     await session.commit()

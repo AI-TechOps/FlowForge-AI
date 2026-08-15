@@ -33,8 +33,25 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     op.drop_column("runs", "attempts")
-    # Postgres cannot drop a single enum label. Recreating the type would mean
-    # rewriting every dependent column, and the value is inert once nothing
-    # writes it — so the label is deliberately left behind. Noted rather than
-    # silently skipped: a downgrade that claims to be complete and is not is
-    # worse than one that says which part it cannot undo.
+    # Postgres cannot drop a single enum label, so the type is rebuilt without
+    # it. Leaving the label behind was the first version of this and it left
+    # the schema not equivalent to 0004 — which is what task 9 asked for, and
+    # what the migration cycle gate is supposed to prove. An inert leftover is
+    # still a difference, and "mostly reversible" is not a property worth
+    # claiming.
+    #
+    # Any row already carrying the value has to go somewhere first;
+    # internal_error is the honest home for "it failed and we stopped trying".
+    op.execute(
+        "UPDATE runs SET failure_reason = 'internal_error' WHERE failure_reason = 'dead_letter'"
+    )
+    op.execute("ALTER TYPE failure_reason RENAME TO failure_reason_old")
+    op.execute(
+        "CREATE TYPE failure_reason AS ENUM "
+        "('ungrounded', 'schema_invalid', 'timeout', 'tool_error', 'internal_error')"
+    )
+    op.execute(
+        "ALTER TABLE runs ALTER COLUMN failure_reason "
+        "TYPE failure_reason USING failure_reason::text::failure_reason"
+    )
+    op.execute("DROP TYPE failure_reason_old")

@@ -23,8 +23,16 @@ logger = logging.getLogger(__name__)
 EMBED_BATCH_SIZE = 32
 
 
-async def ingest_document(ctx: dict[str, Any], document_id: str, org_id: str) -> str:
-    """arq job entrypoint. Returns the final document status."""
+async def ingest_document(
+    ctx: dict[str, Any], document_id: str, org_id: str, actor_user_id: str | None = None
+) -> str:
+    """arq job entrypoint. Returns the final document status.
+
+    `actor_user_id` is the administrator who uploaded the document; it travels
+    with the job so the worker holds the same authority context the caller had
+    (spec 05 §4), and a re-ingest can be attributed.
+    """
+    del actor_user_id
     doc_uuid = uuid.UUID(document_id)
     org_uuid = uuid.UUID(org_id)
 

@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.principal import ANY_PERSONA, OPERATOR_WORK, Principal
 from app.db import get_session
 from app.models import Ticket, TicketStatus
+from app.tenancy import get_scoped
 
 router = APIRouter()
 
@@ -87,7 +88,7 @@ async def get_ticket_detail(
     session: AsyncSession = Depends(get_session),
     principal: Principal = ANY_PERSONA,
 ) -> dict[str, Any]:
-    ticket = await session.get(Ticket, ticket_id)
-    if ticket is None or ticket.org_id != principal.org_id:
+    ticket = await get_scoped(session, Ticket, ticket_id, principal.org_id)
+    if ticket is None:
         raise HTTPException(status_code=404, detail="ticket not found")
     return ticket_payload(ticket)

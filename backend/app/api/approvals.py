@@ -13,6 +13,7 @@ from app.auth.principal import APPROVAL_READERS, APPROVER_ONLY, Principal
 from app.db import get_session
 from app.ingestion.queue import enqueue_resume
 from app.models import Approval, ApprovalStatus, Decision, Run, Ticket
+from app.tenancy import get_scoped
 
 router = APIRouter()
 
@@ -77,12 +78,18 @@ async def get_approval(
     asked to authorise a write on an agent's say-so needs to see what the agent
     read, not just what it concluded.
     """
-    approval = await session.get(Approval, approval_id)
-    if approval is None or approval.org_id != principal.org_id:
+    approval = await get_scoped(session, Approval, approval_id, principal.org_id)
+    if approval is None:
         raise HTTPException(status_code=404, detail="approval not found")
 
-    run = await session.get(Run, approval.run_id)
-    ticket = await session.get(Ticket, run.ticket_id) if run else None
+    # Every hop is scoped, not just the entry point. An approval row can name a
+    # run in another organization -- the foreign key covers run_id, not
+    # (org_id, run_id) -- and following it unscoped disclosed that run's output,
+    # evidence, and ticket to the wrong tenant (Codex Phase 4 finding 1).
+    run = await get_scoped(session, Run, approval.run_id, principal.org_id)
+    ticket = await get_scoped(session, Ticket, run.ticket_id, principal.org_id) if run else None
+    if run is None:
+        raise HTTPException(status_code=404, detail="approval not found")
     output = (run.output if run else None) or {}
 
     actions = approval.original_proposal or []
@@ -137,18 +144,20 @@ async def decide(
     """
     org_id = principal.org_id
     user_id = principal.user_id
-    approval = await session.get(Approval, approval_id)
-    if approval is None or approval.org_id != org_id:
+    approval = await get_scoped(session, Approval, approval_id, org_id)
+    if approval is None:
         raise HTTPException(status_code=404, detail="approval not found")
 
     final_values = None
     if payload.decision == Decision.edited:
         if not payload.final_values:
             raise HTTPException(status_code=422, detail="edited decisions require final_values")
-        run = await session.get(Run, approval.run_id)
+        run = await get_scoped(session, Run, approval.run_id, org_id)
+        if run is None:
+            raise HTTPException(status_code=404, detail="approval not found")
         final_values = _validate_edits(
             payload.final_values,
-            allowed_ticket_id=run.ticket_id if run else None,
+            allowed_ticket_id=run.ticket_id,
             allowed_tools={a.get("tool") for a in (approval.original_proposal or [])},
         )
 
@@ -193,7 +202,7 @@ async def decide(
 
     # Enqueued only after the decision is durably committed: a resume that ran
     # before the commit could read a still-pending approval and do nothing.
-    await enqueue_resume(approval.run_id, org_id)
+    await enqueue_resume(approval.run_id, org_id, user_id)
     await session.refresh(approval)
     return _approval_summary(approval)
 

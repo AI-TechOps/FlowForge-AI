@@ -23,6 +23,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
+import httpx
 import jwt
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
@@ -71,6 +72,10 @@ class TokenClaims:
     subject: str
     email: str | None
     expires_at: int
+    # Whether the identity provider vouches for the address. Linking on an
+    # unverified email would let anyone who can register that address at the
+    # IdP claim the matching FlowForge account.
+    email_verified: bool = False
 
 
 class AuthProvider(ABC):
@@ -117,7 +122,24 @@ class AuthProvider(ABC):
             subject=str(subject),
             email=payload.get("email"),
             expires_at=int(payload["exp"]),
+            email_verified=bool(payload.get("email_verified", False)),
         )
+
+    async def userinfo(self, token: str) -> tuple[str | None, bool]:
+        """Fetch (email, email_verified) from the provider's userinfo endpoint.
+
+        Needed because an OAuth2 *access token* for a custom API carries
+        authorization data, not profile data: Auth0 returns `email` in the ID
+        token, and putting it in the access token requires an Action adding a
+        custom claim. The frontend sends only the access token, so without this
+        the documented tenant setup would 403 every first login (Codex Phase 4
+        finding 4).
+
+        Default: no endpoint, nothing learned. Only providers that have one
+        override it.
+        """
+        del token
+        return None, False
 
 
 def _generate_key() -> rsa.RSAPrivateKey:
@@ -166,6 +188,7 @@ class Auth0Provider(AuthProvider):
     """
 
     def __init__(self, domain: str, audience: str) -> None:
+        self._domain = domain
         self.issuer = f"https://{domain}/"
         self.audience = audience
         self._jwks = jwt.PyJWKClient(
@@ -179,6 +202,27 @@ class Auth0Provider(AuthProvider):
             return self._jwks.get_signing_key_from_jwt(token).key
         except Exception as exc:  # noqa: BLE001 - unknown kid is just a bad token
             raise InvalidToken("no signing key for this token") from exc
+
+    async def userinfo(self, token: str) -> tuple[str | None, bool]:
+        """Ask Auth0 who this token belongs to.
+
+        Called only when a subject is unknown to us — that is, once per user,
+        at first login — so this is not a per-request round trip. Requires the
+        token to have been issued with the `openid profile email` scopes, which
+        the frontend requests.
+        """
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                response = await client.get(
+                    f"https://{self._domain}/userinfo",
+                    headers={"Authorization": f"Bearer {token}"},
+                )
+                response.raise_for_status()
+                profile = response.json()
+        except Exception:  # noqa: BLE001 - an unreachable IdP is just a failed login
+            logger.warning("userinfo lookup failed", exc_info=True)
+            return None, False
+        return profile.get("email"), bool(profile.get("email_verified", False))
 
 
 class LocalDevProvider(AuthProvider):
@@ -230,6 +274,9 @@ class LocalDevProvider(AuthProvider):
                 "email": email,
                 "iss": self.issuer,
                 "aud": self.audience,
+                # The dev issuer vouches for whatever address it was asked to
+                # sign; there is no registration step here to verify against.
+                "email_verified": True,
                 "iat": now,
                 "exp": now + ttl_seconds,
                 "jti": str(uuid.uuid4()),

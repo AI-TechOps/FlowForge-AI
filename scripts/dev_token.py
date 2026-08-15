@@ -25,10 +25,20 @@ DEFAULT_BASE_URL = "http://localhost:8000"
 DEFAULT_EMAIL = "demo@demo"
 
 
-def fetch_token(base_url: str = DEFAULT_BASE_URL, email: str = DEFAULT_EMAIL) -> str:
+def fetch_token(
+    base_url: str = DEFAULT_BASE_URL,
+    email: str = DEFAULT_EMAIL,
+    org_id: str | None = None,
+) -> str:
+    # org_id disambiguates: the same address can exist in two tenants, and a
+    # caller that knows which one it means should say so rather than let the
+    # lookup guess.
+    payload: dict[str, str] = {"email": email}
+    if org_id:
+        payload["org_id"] = org_id
     request = urllib.request.Request(
         f"{base_url.rstrip('/')}/api/dev/token",
-        data=json.dumps({"email": email}).encode("utf-8"),
+        data=json.dumps(payload).encode("utf-8"),
         headers={"Content-Type": "application/json"},
         method="POST",
     )
@@ -48,9 +58,11 @@ def fetch_token(base_url: str = DEFAULT_BASE_URL, email: str = DEFAULT_EMAIL) ->
 
 
 def auth_header(
-    base_url: str = DEFAULT_BASE_URL, email: str = DEFAULT_EMAIL
+    base_url: str = DEFAULT_BASE_URL,
+    email: str = DEFAULT_EMAIL,
+    org_id: str | None = None,
 ) -> dict[str, str]:
-    return {"Authorization": f"Bearer {fetch_token(base_url, email)}"}
+    return {"Authorization": f"Bearer {fetch_token(base_url, email, org_id)}"}
 
 
 if __name__ == "__main__":

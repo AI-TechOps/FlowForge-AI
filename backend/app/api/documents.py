@@ -11,6 +11,7 @@ from app.config import get_settings
 from app.db import get_session
 from app.ingestion.queue import enqueue_ingest
 from app.models import Chunk, Document, DocumentStatus
+from app.tenancy import get_scoped
 
 router = APIRouter()
 
@@ -73,7 +74,7 @@ async def upload_document(
     document.file_ref = str(target_path)
     await session.commit()
 
-    await enqueue_ingest(document.id, org_id)
+    await enqueue_ingest(document.id, org_id, principal.user_id)
     return {"id": str(document.id), "status": DocumentStatus.pending.value}
 
 
@@ -88,14 +89,14 @@ async def reingest_document(
     Safe to call in any status: the pipeline deletes and rewrites chunks.
     """
     org_id = principal.org_id
-    document = await session.get(Document, document_id)
-    if document is None or document.org_id != org_id:
+    document = await get_scoped(session, Document, document_id, org_id)
+    if document is None:
         raise HTTPException(status_code=404, detail="document not found")
 
     document.status = DocumentStatus.pending
     document.error_message = None
     await session.commit()
-    await enqueue_ingest(document.id, org_id)
+    await enqueue_ingest(document.id, org_id, principal.user_id)
     return {"id": str(document.id), "status": DocumentStatus.pending.value}
 
 
@@ -123,8 +124,8 @@ async def get_document(
     principal: Principal = ADMIN_ONLY,
 ) -> dict[str, Any]:
     org_id = principal.org_id
-    document = await session.get(Document, document_id)
-    if document is None or document.org_id != org_id:
+    document = await get_scoped(session, Document, document_id, org_id)
+    if document is None:
         raise HTTPException(status_code=404, detail="document not found")
     chunk_count = (
         await session.execute(select(func.count(Chunk.id)).where(Chunk.document_id == document.id))

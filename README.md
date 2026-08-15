@@ -83,19 +83,23 @@ Model-agnostic by design (`backend/app/llm/provider.py` is the only module that 
 
 ## Knowledge ingestion & retrieval (Phase 1)
 
+Since Phase 4 every call needs a token; these are administrator operations.
+
 ```bash
+ADMIN="Authorization: Bearer $(python scripts/dev_token.py --email admin@demo)"
+
 # Upload a document (.pdf, .md, .txt; ≤20 MB) — returns 202 + document id
-curl -F "file=@policy.pdf" -F "title=VPN Access Policy" localhost:8000/api/documents
+curl -H "$ADMIN" -F "file=@policy.pdf" -F "title=VPN Access Policy" localhost:8000/api/documents
 
 # Ingestion status (pending → processing → ready | failed)
-curl localhost:8000/api/documents            # list + chunk counts
-curl localhost:8000/api/documents/<id>       # single document
+curl -H "$ADMIN" localhost:8000/api/documents            # list + chunk counts
+curl -H "$ADMIN" localhost:8000/api/documents/<id>       # single document
 
 # Recover a failed/stuck document
-curl -X POST localhost:8000/api/documents/<id>/reingest
+curl -H "$ADMIN" -X POST localhost:8000/api/documents/<id>/reingest
 
 # Dev-only retrieval check (404 in prod)
-curl -X POST localhost:8000/api/retrieve \
+curl -H "$ADMIN" -X POST localhost:8000/api/retrieve \
   -H 'Content-Type: application/json' \
   -d '{"query": "how do I reset my VPN access?", "k": 3}'
 ```
@@ -108,15 +112,18 @@ Ingestion runs on the `worker` compose service (arq + Redis). Files are stored u
 # Load the labeled eval seed set (20 tickets; idempotent)
 python scripts/load_eval_tickets.py
 
+OPERATOR="Authorization: Bearer $(python scripts/dev_token.py --email operator@demo)"
+
 # File a ticket, then triage it
-TICKET=$(curl -s -X POST localhost:8000/api/tickets -H 'Content-Type: application/json' \
+TICKET=$(curl -s -H "$OPERATOR" -X POST localhost:8000/api/tickets -H 'Content-Type: application/json' \
   -d '{"title":"Cannot connect to VPN","description":"Times out from home.","service":"MeridianConnect VPN"}' \
   | python -c 'import json,sys; print(json.load(sys.stdin)["id"])')
-RUN=$(curl -s -X POST localhost:8000/api/tickets/$TICKET/triage \
+RUN=$(curl -s -H "$OPERATOR" -X POST localhost:8000/api/runs -H 'Content-Type: application/json' \
+  -d '{"ticket_id":"'$TICKET'"}' \
   | python -c 'import json,sys; print(json.load(sys.stdin)["id"])')
 
 # Run detail: structured output, evidence, and the full audit trail
-curl -s localhost:8000/api/runs/$RUN | python -m json.tool
+curl -s -H "$OPERATOR" localhost:8000/api/runs/$RUN | python -m json.tool
 ```
 
 The graph runs `load_ticket → retrieve_evidence → classify → ground_check → propose`
@@ -142,19 +149,26 @@ is noise by design).
 Triage no longer ends at a recommendation: it derives concrete write actions, **pauses**,
 and waits for a human.
 
+Two different people, which is the point (D4): the operator triages, the approver decides.
+
 ```bash
+OPERATOR="Authorization: Bearer $(python scripts/dev_token.py --email operator@demo)"
+APPROVER="Authorization: Bearer $(python scripts/dev_token.py --email approver@demo)"
+
 # Triage now pauses instead of completing
-RUN=$(curl -s -X POST localhost:8000/api/tickets/$TICKET/triage \
+RUN=$(curl -s -H "$OPERATOR" -X POST localhost:8000/api/runs \
+  -H 'Content-Type: application/json' -d '{"ticket_id":"'$TICKET'"}' \
   | python -c 'import json,sys; print(json.load(sys.stdin)["id"])')
-curl -s localhost:8000/api/runs/$RUN      # -> "status": "awaiting_approval"
+curl -s -H "$OPERATOR" localhost:8000/api/runs/$RUN   # -> "status": "awaiting_approval"
 
 # The approval inbox, and the card a human decides from
-curl -s "localhost:8000/api/approvals?status=pending"
-curl -s localhost:8000/api/approvals/$APPROVAL | python -m json.tool
+curl -s -H "$APPROVER" "localhost:8000/api/approvals?status=pending"
+curl -s -H "$APPROVER" localhost:8000/api/approvals/$APPROVAL | python -m json.tool
 
-# Decide. X-User-Id names the approver (Phase 4 replaces it with real auth).
+# Decide. The approver is the token's user — nothing in the request can name
+# someone else, and the operator above gets 403 here (G4.3).
 curl -X POST localhost:8000/api/approvals/$APPROVAL/decision \
-  -H 'Content-Type: application/json' -H "X-User-Id: $APPROVER_ID" \
+  -H 'Content-Type: application/json' -H "$APPROVER" \
   -d '{"decision":"approved"}'
 
 # ...or override the agent, or refuse it outright

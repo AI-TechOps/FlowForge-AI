@@ -22,6 +22,7 @@ from app.config import get_settings
 from app.db import get_session
 from app.integrations.ticket_system import clear_fault, recorded_calls, set_fault
 from app.models import Run
+from app.tenancy import get_scoped
 
 router = APIRouter()
 
@@ -55,8 +56,8 @@ async def list_adapter_calls(
     dev-only, but D7's tenant boundary should hold in shared dev and CI too.
     """
     _guard()
-    run = await session.get(Run, run_id)
-    if run is None or run.org_id != principal.org_id:
+    run = await get_scoped(session, Run, run_id, principal.org_id)
+    if run is None:
         raise HTTPException(status_code=404, detail="run not found")
     return {"calls": await recorded_calls(run_id)}
 

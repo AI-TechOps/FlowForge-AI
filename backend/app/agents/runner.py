@@ -13,7 +13,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from langgraph.types import Command
-from sqlalchemy import select
+from sqlalchemy import and_, or_, select, update
 
 from app.agents import audit
 from app.agents.checkpointer import checkpointer
@@ -37,8 +37,15 @@ from app.models import (
 logger = logging.getLogger(__name__)
 
 
-async def execute_run(ctx: dict[str, Any], run_id: str, org_id: str) -> str:
-    """arq entrypoint. Returns the terminal run status."""
+async def execute_run(
+    ctx: dict[str, Any], run_id: str, org_id: str, actor_user_id: str | None = None
+) -> str:
+    """arq entrypoint. Returns the terminal run status.
+
+    `actor_user_id` is the human who triggered triage. Optional because
+    recovery re-enqueues without one — a system-initiated retry has no human
+    behind it, and saying so is more honest than inventing one.
+    """
     run_uuid = uuid.UUID(run_id)
     org_uuid = uuid.UUID(org_id)
     settings = get_settings()
@@ -49,18 +56,44 @@ async def execute_run(ctx: dict[str, Any], run_id: str, org_id: str) -> str:
             logger.warning("run %s not found in org %s", run_id, org_id)
             return "missing"
 
-        # Count the attempt before doing any work, so a run that kills its
-        # worker outright still has the attempt recorded. Counting on success
-        # or on a caught exception would miss exactly the failure mode this
-        # protects against — the one that never comes back to write anything.
-        run.attempts = (run.attempts or 0) + 1
+        # Claim the run with a compare-and-swap, exactly as resume_run refuses
+        # a duplicate resume. Checking id and org alone was not enough: a
+        # redelivered or stale initial job found a *completed* run, set it back
+        # to running, and drove it through the graph again — erasing
+        # terminality and creating a second approval on a run a human had
+        # already finished with (Codex Phase 4 finding 2).
+        #
+        # `queued` and `running` are both claimable: `running` is what a job
+        # that died mid-flight leaves behind, and recovery re-enqueues it. Any
+        # other status is terminal or owned by the resume path, and a job
+        # arriving for one of those is a no-op.
+        #
+        # Attempts increment inside the same UPDATE, so the count survives a
+        # process that dies before writing anything else.
+        claimed = await session.execute(
+            update(Run)
+            .where(
+                Run.id == run_uuid,
+                Run.status.in_((RunStatus.queued, RunStatus.running)),
+            )
+            .values(
+                status=RunStatus.running,
+                attempts=Run.attempts + 1,
+                started_at=datetime.now(UTC),
+                agent_version=AGENT_VERSION,
+            )
+            .execution_options(synchronize_session=False)
+        )
+        if claimed.rowcount == 0:
+            await session.rollback()
+            await session.refresh(run)
+            logger.info("execute: run %s already %s; ignoring", run_id, run.status.value)
+            return run.status.value
+        await session.commit()
+        await session.refresh(run)
+
         if run.attempts > settings.max_run_attempts:
             return await _dead_letter(session, run)
-
-        run.status = RunStatus.running
-        run.started_at = datetime.now(UTC)
-        run.agent_version = AGENT_VERSION
-        await session.commit()
 
         context = ToolContext(session=session, org_id=org_uuid, run_id=run_uuid, actor="agent")
         try:
@@ -92,7 +125,9 @@ async def execute_run(ctx: dict[str, Any], run_id: str, org_id: str) -> str:
         return await _finalize(session, run, state)
 
 
-async def resume_run(ctx: dict[str, Any], run_id: str, org_id: str) -> str:
+async def resume_run(
+    ctx: dict[str, Any], run_id: str, org_id: str, actor_user_id: str | None = None
+) -> str:
     """arq entrypoint: continue a paused run after a human decision.
 
     This is deliberately a *fresh* job in a possibly different process. It
@@ -134,7 +169,10 @@ async def resume_run(ctx: dict[str, Any], run_id: str, org_id: str) -> str:
             session=session,
             org_id=org_uuid,
             run_id=run_uuid,
-            actor=f"user:{approval.approver_user_id}",
+            # The payload's actor is the authority the API attached at
+            # decision time; the approval row is the durable fallback for a
+            # recovery re-enqueue, which carries none.
+            actor=f"user:{actor_user_id or approval.approver_user_id}",
             # The single place a gated write is authorised: a decided approval
             # has just been loaded for this run.
             approval_granted=True,
@@ -237,28 +275,53 @@ async def recover_stranded_runs() -> int:
                 logger.warning("recovering run %s: decided approval never resumed", run.id)
                 await enqueue_resume(run.id, run.org_id)
 
-            # Never-started: the run row committed but the queued job is gone —
-            # Redis restarted, evicted it, or the enqueue itself failed. Nothing
-            # in `queued` is waiting on a human, so past the cutoff it is
-            # waiting on a message that no longer exists (spec 05 §4).
-            never_started = (
+            # Never-started and crashed-mid-triage. `queued` means the job is
+            # gone — Redis restarted, evicted it, or the enqueue failed.
+            # `running` means a worker claimed it and died before reaching any
+            # terminal handler; a poison message that kills the process leaves
+            # exactly this, and scanning only `executing` missed it entirely
+            # (Codex Phase 4 finding 3). Neither state is waiting on a human.
+            #
+            # The two states age on different clocks, and using one for both
+            # was wrong: a run *running* for two hours is stranded no matter
+            # when it was created, while a run created two hours ago but
+            # claimed a second ago is perfectly healthy. So `queued` is judged
+            # on created_at (it has no start) and `running` on started_at.
+            unfinished = (
                 (
                     await session.execute(
                         select(Run).where(
-                            Run.status == RunStatus.queued,
-                            Run.created_at < cutoff,
-                            Run.attempts < settings.max_run_attempts,
+                            or_(
+                                and_(
+                                    Run.status == RunStatus.queued,
+                                    Run.created_at < cutoff,
+                                ),
+                                and_(
+                                    Run.status == RunStatus.running,
+                                    Run.started_at < cutoff,
+                                ),
+                            )
                         )
                     )
                 )
                 .scalars()
                 .all()
             )
-            for run in never_started:
-                logger.warning("recovering run %s: queued but never picked up", run.id)
+            recovered = 0
+            for run in unfinished:
+                # The attempt that killed the worker was already counted, so a
+                # run at the limit has had its chances. Waiting for a further
+                # pickup to trip `_dead_letter` would wait forever: arq's own
+                # max_tries is the same number, so there need not be one.
+                if (run.attempts or 0) >= settings.max_run_attempts:
+                    logger.warning("dead-lettering run %s: attempts exhausted", run.id)
+                    await _dead_letter(session, run)
+                    continue
+                logger.warning("recovering run %s stranded in %s", run.id, run.status.value)
                 await enqueue_run(run.id, run.org_id)
+                recovered += 1
 
-            return len(stranded) + len(orphaned) + len(never_started)
+            return len(stranded) + len(orphaned) + recovered
     except Exception:  # noqa: BLE001 - recovery is best-effort housekeeping
         # A worker that refuses to start because a *recovery* query failed is
         # strictly worse than one that starts without recovering. This fires on

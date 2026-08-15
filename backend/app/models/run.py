@@ -68,6 +68,11 @@ class Run(TenantBase, TimestampMixin, Base):
     # Postgres rather than in the queue because it must survive Redis losing
     # the job — which is precisely the situation that re-enqueues it.
     attempts: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    # The human who started this run. SET NULL on user delete: the run
+    # happened, and the audit trail should keep saying so.
+    triggered_by: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL")
+    )
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 

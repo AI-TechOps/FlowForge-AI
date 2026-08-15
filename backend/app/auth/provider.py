@@ -32,9 +32,18 @@ from app.config import Settings, get_settings
 # and HS256-signed-with-the-public-key confusions work.
 ALGORITHMS = ["RS256"]
 
-# Tolerance for clock drift between the IdP and us, in seconds. Small enough
-# that an expired token stays meaningfully expired.
-LEEWAY_SECONDS = 30
+# Clock-drift tolerance, in seconds — and deliberately asymmetric.
+#
+# The two directions are not equally dangerous. Rejecting a token that has only
+# just become valid (our clock trails the IdP's, so `iat`/`nbf` look like the
+# future) is a retryable client annoyance. Accepting one that has *stopped*
+# being valid is a security failure, and it is exactly what an attacker holding
+# a leaked token needs.
+#
+# So a small tolerance covers the not-yet-valid side, and expiry is then
+# re-checked with none at all. A single symmetric leeway would have made every
+# token live that much past its stated `exp`, which is not what `exp` means.
+LEEWAY_SECONDS = 5
 
 
 class InvalidToken(Exception):
@@ -90,6 +99,12 @@ class AuthProvider(ABC):
             )
         except Exception as exc:  # noqa: BLE001 - every failure is one 401
             raise InvalidToken(str(exc)) from exc
+
+        # Expiry, re-checked with zero tolerance. `jwt.decode` applied the
+        # leeway above to every time claim including `exp`; this takes it back
+        # for the one claim where being generous is a vulnerability.
+        if int(payload["exp"]) <= int(time.time()):
+            raise InvalidToken("token has expired")
 
         subject = payload.get("sub")
         if not subject:

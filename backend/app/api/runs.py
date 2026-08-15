@@ -4,11 +4,12 @@ from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.prompts import AGENT_VERSION
-from app.api.deps import current_org_id
+from app.auth.principal import ANY_PERSONA, OPERATOR_WORK, Principal
 from app.db import get_session
 from app.ingestion.queue import enqueue_run
 from app.models import AuditLog, FailureReason, Run, RunStatus, Ticket
@@ -33,11 +34,38 @@ def _run_summary(run: Run) -> dict[str, Any]:
     }
 
 
+class RunCreate(BaseModel):
+    ticket_id: uuid.UUID
+
+
+@router.post("/api/runs", status_code=202)
+async def create_run(
+    payload: RunCreate,
+    session: AsyncSession = Depends(get_session),
+    principal: Principal = OPERATOR_WORK,
+) -> dict[str, Any]:
+    """Start a triage run. The canonical way to trigger the agent.
+
+    A run is a resource in its own right — it has a lifecycle, a detail page,
+    and an approval hanging off it — so it is created by POSTing to the
+    collection that lists it. `/api/tickets/{id}/triage` predates this and
+    remains as an alias.
+    """
+    return await _start_run(session, principal.org_id, payload.ticket_id)
+
+
 @router.post("/api/tickets/{ticket_id}/triage", status_code=202)
 async def start_triage(
     ticket_id: uuid.UUID,
     session: AsyncSession = Depends(get_session),
-    org_id: uuid.UUID = Depends(current_org_id),
+    principal: Principal = OPERATOR_WORK,
+) -> dict[str, Any]:
+    """Alias for `POST /api/runs`, kept so Phase 1-3 callers keep working."""
+    return await _start_run(session, principal.org_id, ticket_id)
+
+
+async def _start_run(
+    session: AsyncSession, org_id: uuid.UUID, ticket_id: uuid.UUID
 ) -> dict[str, Any]:
     ticket = await session.get(Ticket, ticket_id)
     if ticket is None or ticket.org_id != org_id:
@@ -76,11 +104,11 @@ async def start_triage(
 @router.get("/api/runs")
 async def list_runs(
     session: AsyncSession = Depends(get_session),
-    org_id: uuid.UUID = Depends(current_org_id),
+    principal: Principal = ANY_PERSONA,
     status: RunStatus | None = Query(default=None),
     ticket_id: uuid.UUID | None = Query(default=None),
 ) -> list[dict[str, Any]]:
-    statement = select(Run).where(Run.org_id == org_id)
+    statement = select(Run).where(Run.org_id == principal.org_id)
     if status is not None:
         statement = statement.where(Run.status == status)
     if ticket_id is not None:
@@ -93,9 +121,10 @@ async def list_runs(
 async def get_run(
     run_id: uuid.UUID,
     session: AsyncSession = Depends(get_session),
-    org_id: uuid.UUID = Depends(current_org_id),
+    principal: Principal = ANY_PERSONA,
 ) -> dict[str, Any]:
     """Full run detail: status, structured output, evidence, and audit trail."""
+    org_id = principal.org_id
     run = await session.get(Run, run_id)
     if run is None or run.org_id != org_id:
         raise HTTPException(status_code=404, detail="run not found")

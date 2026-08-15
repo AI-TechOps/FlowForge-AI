@@ -17,7 +17,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import current_org_id
+from app.auth.principal import ADMIN_ONLY, Principal
 from app.config import get_settings
 from app.db import get_session
 from app.integrations.ticket_system import clear_fault, recorded_calls, set_fault
@@ -41,7 +41,7 @@ class FaultIn(BaseModel):
 @router.get(f"{BASE}/calls")
 async def list_adapter_calls(
     run_id: uuid.UUID = Query(...),
-    org_id: uuid.UUID = Depends(current_org_id),
+    principal: Principal = ADMIN_ONLY,
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, list[dict[str, Any]]]:
     """Every adapter call made for a run, in order.
@@ -56,7 +56,7 @@ async def list_adapter_calls(
     """
     _guard()
     run = await session.get(Run, run_id)
-    if run is None or run.org_id != org_id:
+    if run is None or run.org_id != principal.org_id:
         raise HTTPException(status_code=404, detail="run not found")
     return {"calls": await recorded_calls(run_id)}
 
@@ -64,7 +64,7 @@ async def list_adapter_calls(
 @router.post(f"{BASE}/failures", status_code=204)
 async def inject_failure(
     payload: FaultIn,
-    _org_id: uuid.UUID = Depends(current_org_id),
+    _principal: Principal = ADMIN_ONLY,
 ) -> None:
     """Arm the adapter to fail its next N calls.
 
@@ -76,6 +76,6 @@ async def inject_failure(
 
 
 @router.delete(f"{BASE}/failures", status_code=204)
-async def clear_failure(_org_id: uuid.UUID = Depends(current_org_id)) -> None:
+async def clear_failure(_principal: Principal = ADMIN_ONLY) -> None:
     _guard()
     await clear_fault()

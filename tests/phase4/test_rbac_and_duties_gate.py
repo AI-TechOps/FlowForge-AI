@@ -92,7 +92,9 @@ def test_g4_2_tickets_get_matrix_cell(
     token = _token(phase4_principals, role)
     responses = [
         phase4_client.request("GET", "/api/tickets", token=token),
-        phase4_client.request("GET", f"/api/tickets/{phase4_world['a'].ticket_id}", token=token),
+        phase4_client.request(
+            "GET", f"/api/tickets/{phase4_world['a'].ticket_id}", token=token
+        ),
     ]
     assert_allowed(responses, statuses={200})
 
@@ -104,7 +106,9 @@ def test_g4_2_runs_post_matrix_cell(
     phase4_world: dict[str, TenantWorld],
     role: str,
 ) -> None:
-    response = phase4_client.start_run(_token(phase4_principals, role), phase4_world["a"].ticket_id)
+    response = phase4_client.start_run(
+        _token(phase4_principals, role), phase4_world["a"].ticket_id
+    )
     if role in {"administrator", "operator"}:
         assert_allowed(response)
     else:
@@ -121,7 +125,9 @@ def test_g4_2_runs_get_matrix_cell(
     token = _token(phase4_principals, role)
     responses = [
         phase4_client.request("GET", "/api/runs", token=token),
-        phase4_client.request("GET", f"/api/runs/{phase4_world['a'].run_id}", token=token),
+        phase4_client.request(
+            "GET", f"/api/runs/{phase4_world['a'].run_id}", token=token
+        ),
     ]
     assert_allowed(responses, statuses={200})
 
@@ -198,7 +204,9 @@ def test_g4_2_me_get_matrix_cell(
     phase4_principals: dict[str, dict[str, PrincipalToken]],
     role: str,
 ) -> None:
-    response = phase4_client.request("GET", "/api/me", token=_token(phase4_principals, role))
+    response = phase4_client.request(
+        "GET", "/api/me", token=_token(phase4_principals, role)
+    )
     assert_allowed(response, statuses={200})
 
 
@@ -254,8 +262,12 @@ def test_g4_3_triggering_user_can_approve_only_with_explicit_approver_grant(
         description=f"MeridianConnect VPN recovery needed. Marker {marker}.",
     )
     ticket_id = identifier_from(ticket, "ticket")
-    run_id = identifier_from(phase4_client.start_run(principal.access_token, ticket_id), "run")
-    approval = wait_for_approval(phase4_client, token=principal.access_token, run_id=run_id)
+    run_id = identifier_from(
+        phase4_client.start_run(principal.access_token, ticket_id), "run"
+    )
+    approval = wait_for_approval(
+        phase4_client, token=principal.access_token, run_id=run_id
+    )
     response = phase4_client.request(
         "POST",
         f"/api/approvals/{approval_id(approval)}/decision",

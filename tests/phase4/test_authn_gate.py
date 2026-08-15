@@ -32,11 +32,7 @@ def _login_paths(client: Phase4Client) -> set[str]:
 
 def _is_login_path(path: str, client: Phase4Client) -> bool:
     normalized = path.rstrip("/")
-    return (
-        path in _login_paths(client)
-        or normalized.endswith("/login")
-        or normalized.endswith("/callback")
-    )
+    return path in _login_paths(client) or normalized.endswith(("/login", "/callback"))
 
 
 def _concrete_path(path: str) -> str:
@@ -95,7 +91,9 @@ def test_g4_1_malformed_credentials_are_unauthorized(
     phase4_client: Phase4Client,
     authorization: str,
 ) -> None:
-    response = phase4_client.request("GET", "/api/me", headers={"Authorization": authorization})
+    response = phase4_client.request(
+        "GET", "/api/me", headers={"Authorization": authorization}
+    )
     assert response.status == 401, response_detail(response)
 
 

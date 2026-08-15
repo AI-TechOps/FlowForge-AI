@@ -6,8 +6,12 @@ provider.
 """
 
 from app.auth.principal import (
+    ADMIN_ONLY,
+    ANY_PERSONA,
+    APPROVAL_READERS,
+    APPROVER_ONLY,
+    OPERATOR_WORK,
     Principal,
-    current_org_id,
     current_principal,
     require_roles,
 )
@@ -21,13 +25,17 @@ from app.auth.provider import (
 )
 
 __all__ = [
+    "ADMIN_ONLY",
+    "ANY_PERSONA",
+    "APPROVAL_READERS",
+    "APPROVER_ONLY",
+    "OPERATOR_WORK",
     "AuthProvider",
     "InvalidToken",
     "LocalDevProvider",
     "Principal",
     "TokenClaims",
     "bearer_token",
-    "current_org_id",
     "current_principal",
     "get_auth_provider",
     "require_roles",

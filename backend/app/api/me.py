@@ -16,7 +16,9 @@ router = APIRouter()
 
 
 class MeResponse(BaseModel):
-    user_id: uuid.UUID
+    # `id`, not `user_id`: this resource *is* the user, so it names itself the
+    # way every other resource in the API does.
+    id: uuid.UUID
     org_id: uuid.UUID
     email: str
     roles: list[str]
@@ -24,9 +26,14 @@ class MeResponse(BaseModel):
 
 @router.get("/api/me", response_model=MeResponse)
 async def read_me(principal: Principal = Depends(current_principal)) -> MeResponse:
-    """Any authenticated role may call this; it only ever describes the caller."""
+    """Describes the caller, so it needs no role — only a valid token.
+
+    Deliberately not role-gated: a principal holding no persona still has to be
+    able to learn that, or the UI has no way to explain why everything else
+    403s.
+    """
     return MeResponse(
-        user_id=principal.user_id,
+        id=principal.user_id,
         org_id=principal.org_id,
         email=principal.email,
         # Sorted so the response is stable for snapshot-style assertions and

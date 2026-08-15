@@ -71,7 +71,9 @@ def test_g4_4_cross_tenant_resource_access_is_not_found_without_leakage(
             for key, value in payload.items()
         }
     token = _principal(phase4_principals, "a", role).access_token
-    response = phase4_client.request(method, path, token=token, json_body=payload, timeout=30)
+    response = phase4_client.request(
+        method, path, token=token, json_body=payload, timeout=30
+    )
     assert response.status == 404, response_detail(response)
     assert_not_leaked(response, foreign.marker, f"Phase 4 approval {foreign.marker}")
 
@@ -206,7 +208,9 @@ def test_g4_5_foreign_org_in_create_body_is_rejected_or_ignored_under_token_org(
         return
 
     ticket_id = identifier_from(response, "ticket")
-    own = phase4_client.request("GET", f"/api/tickets/{ticket_id}", token=a_operator.access_token)
+    own = phase4_client.request(
+        "GET", f"/api/tickets/{ticket_id}", token=a_operator.access_token
+    )
     foreign = phase4_client.request(
         "GET", f"/api/tickets/{ticket_id}", token=b_operator.access_token
     )
@@ -248,14 +252,18 @@ def test_g4_6_interleaved_jobs_on_shared_worker_remain_tenant_scoped(
         tickets[tenant] = identifier_from(response, "ticket")
 
     def start(tenant: str) -> str:
-        return identifier_from(phase4_client.start_run(operators[tenant], tickets[tenant]), "run")
+        return identifier_from(
+            phase4_client.start_run(operators[tenant], tickets[tenant]), "run"
+        )
 
     with ThreadPoolExecutor(max_workers=2) as executor:
         futures = {tenant: executor.submit(start, tenant) for tenant in ("a", "b")}
         runs = {tenant: future.result() for tenant, future in futures.items()}
 
     approvals = {
-        tenant: wait_for_approval(phase4_client, token=approvers[tenant], run_id=runs[tenant])
+        tenant: wait_for_approval(
+            phase4_client, token=approvers[tenant], run_id=runs[tenant]
+        )
         for tenant in ("a", "b")
     }
 

@@ -94,9 +94,11 @@ def resource_ids(payload: object) -> set[str]:
 
 def assert_not_leaked(response: ApiResponse, *secrets: str) -> None:
     serialized = (
-        json.dumps(response.body, sort_keys=True) if response.body is not None else response.text
+        json.dumps(response.body, sort_keys=True)
+        if response.body is not None
+        else response.text
     )
     for secret in secrets:
-        assert (
-            secret not in serialized
-        ), f"cross-tenant response leaked {secret!r}: {response_detail(response)}"
+        assert secret not in serialized, (
+            f"cross-tenant response leaked {secret!r}: {response_detail(response)}"
+        )

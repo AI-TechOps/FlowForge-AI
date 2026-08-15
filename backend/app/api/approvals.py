@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents import audit
 from app.agents.write_tools import WRITE_TOOLS
-from app.api.deps import current_org_id, current_user_id
+from app.auth.principal import APPROVAL_READERS, APPROVER_ONLY, Principal
 from app.db import get_session
 from app.ingestion.queue import enqueue_resume
 from app.models import Approval, ApprovalStatus, Decision, Run, Ticket
@@ -53,10 +53,10 @@ def _approval_summary(approval: Approval) -> dict[str, Any]:
 @router.get("/api/approvals")
 async def list_approvals(
     session: AsyncSession = Depends(get_session),
-    org_id: uuid.UUID = Depends(current_org_id),
+    principal: Principal = APPROVAL_READERS,
     status: ApprovalStatus | None = Query(default=None),
 ) -> list[dict[str, Any]]:
-    statement = select(Approval).where(Approval.org_id == org_id)
+    statement = select(Approval).where(Approval.org_id == principal.org_id)
     if status is not None:
         statement = statement.where(Approval.status == status)
     approvals = (
@@ -69,7 +69,7 @@ async def list_approvals(
 async def get_approval(
     approval_id: uuid.UUID,
     session: AsyncSession = Depends(get_session),
-    org_id: uuid.UUID = Depends(current_org_id),
+    principal: Principal = APPROVAL_READERS,
 ) -> dict[str, Any]:
     """The approval card: everything a human needs to decide, in one payload.
 
@@ -78,7 +78,7 @@ async def get_approval(
     read, not just what it concluded.
     """
     approval = await session.get(Approval, approval_id)
-    if approval is None or approval.org_id != org_id:
+    if approval is None or approval.org_id != principal.org_id:
         raise HTTPException(status_code=404, detail="approval not found")
 
     run = await session.get(Run, approval.run_id)
@@ -124,9 +124,19 @@ async def decide(
     approval_id: uuid.UUID,
     payload: DecisionIn,
     session: AsyncSession = Depends(get_session),
-    org_id: uuid.UUID = Depends(current_org_id),
-    user_id: uuid.UUID = Depends(current_user_id),
+    principal: Principal = APPROVER_ONLY,
 ) -> dict[str, Any]:
+    """Authorise, edit, or refuse the proposed writes.
+
+    Approver role only, and never the agent: authorisation is a human act
+    (D5). An administrator is excluded on purpose (D18 decision 4) -- the role
+    that configures the system must not also be the one that approves what it
+    proposes. A user who both filed the ticket and holds an approver grant may
+    decide it: the personas doc allows one human to hold several roles, and the
+    segregation that matters is proposer (agent) vs. authoriser (human).
+    """
+    org_id = principal.org_id
+    user_id = principal.user_id
     approval = await session.get(Approval, approval_id)
     if approval is None or approval.org_id != org_id:
         raise HTTPException(status_code=404, detail="approval not found")

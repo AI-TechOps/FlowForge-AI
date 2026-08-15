@@ -124,9 +124,9 @@ class Phase4Client:
         )
         assert isinstance(response.body, dict), response_detail(response)
         token = response.body.get("access_token", response.body.get("token"))
-        assert (
-            isinstance(token, str) and token
-        ), f"local issuer response lacks access_token: {response.body!r}"
+        assert isinstance(token, str) and token, (
+            f"local issuer response lacks access_token: {response.body!r}"
+        )
         return token
 
     def upload_bytes(
@@ -145,7 +145,10 @@ class Phase4Client:
             title.encode(),
             b"\r\n",
             f"--{boundary}\r\n".encode(),
-            ('Content-Disposition: form-data; name="file"; ' f'filename="{filename}"\r\n').encode(),
+            (
+                'Content-Disposition: form-data; name="file"; '
+                f'filename="{filename}"\r\n'
+            ).encode(),
             f"Content-Type: {media_type}\r\n\r\n".encode(),
             content,
             b"\r\n",
@@ -295,7 +298,9 @@ def wait_for_approval(
             if str(approval.get("run_id")) == run_id:
                 approval_id = approval.get("id", approval.get("approval_id"))
                 assert isinstance(approval_id, str) and approval_id
-                detail = client.request("GET", f"/api/approvals/{approval_id}", token=token)
+                detail = client.request(
+                    "GET", f"/api/approvals/{approval_id}", token=token
+                )
                 assert detail.status == 200, response_detail(detail)
                 return object_body(detail, "approval")
         time.sleep(0.2)
@@ -329,7 +334,9 @@ def _truthy(name: str) -> bool:
 
 def _asyncpg_url(database_url: str) -> str:
     parsed = urlsplit(database_url)
-    return urlunsplit(("postgresql", parsed.netloc, parsed.path, parsed.query, parsed.fragment))
+    return urlunsplit(
+        ("postgresql", parsed.netloc, parsed.path, parsed.query, parsed.fragment)
+    )
 
 
 async def _seed_principals(

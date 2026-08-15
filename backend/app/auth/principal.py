@@ -137,11 +137,22 @@ def require_roles(*allowed: Role) -> Callable[..., Awaitable[Principal]]:
     return dependency
 
 
-async def current_org_id(principal: Principal = Depends(current_principal)) -> uuid.UUID:
-    """Compatibility shim for handlers that only need the tenant.
-
-    Same name as the Phase 1-3 header placeholder it replaces, so the call
-    sites read identically — but the value now comes from a verified token and
-    there is no request field that can influence it.
-    """
-    return principal.org_id
+# The spec 05 §2 matrix, expressed once. Handlers depend on these rather than
+# spelling out role tuples, so the matrix lives in one place and a reviewer can
+# read a router's permissions off its imports.
+#
+# ADMIN_ONLY covers knowledge management and the dev-only routes: uploading a
+# policy document and reading run traces are both administrator work.
+ADMIN_ONLY = Depends(require_roles(Role.administrator))
+# Filing a ticket and starting a triage run — the operator's job, and an
+# administrator may do it too (personas doc).
+OPERATOR_WORK = Depends(require_roles(Role.administrator, Role.operator))
+# Reading tickets and runs. Everyone with a persona sees the work in flight;
+# tenant scoping, not role, is what keeps it to their own organization.
+ANY_PERSONA = Depends(require_roles(Role.administrator, Role.operator, Role.approver))
+# The approval inbox. An administrator may look; only an approver may decide.
+APPROVAL_READERS = Depends(require_roles(Role.administrator, Role.approver))
+# The decision itself. Approver ONLY — deliberately excluding administrator
+# (D18 decision 4): administrator is a configuration role, and letting it
+# approve would put one principal on both sides of D4/D5 segregation of duties.
+APPROVER_ONLY = Depends(require_roles(Role.approver))

@@ -45,3 +45,17 @@ class WorkerSettings:
     # Job timeout sits above the per-run timeout so the run's own handler wins
     # and records a typed `timeout` failure rather than arq killing it silently.
     job_timeout = get_settings().run_timeout_seconds + 60
+    # Graceful shutdown (spec 05 §4): on SIGTERM, let an in-flight run finish
+    # instead of aborting it mid-write. The grace exceeds job_timeout so the
+    # longest legal job can complete; anything still running past that was
+    # already going to be killed by its own timeout.
+    #
+    # A job that does get cut off is not lost — it is left in `executing` or
+    # `queued` and the reconciler re-enqueues it, which is why replay had to be
+    # idempotent (G3.3) before this was safe to rely on.
+    handle_signals = True
+    job_completion_wait = get_settings().run_timeout_seconds + 90
+    # Retries are bounded here as well as in the run row. arq's own counter
+    # governs redelivery; `runs.attempts` is what survives Redis losing the
+    # job entirely, and dead-letters the run when it does not.
+    max_tries = get_settings().max_run_attempts

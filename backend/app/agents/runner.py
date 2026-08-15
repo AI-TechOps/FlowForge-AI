@@ -15,13 +15,14 @@ from typing import Any
 from langgraph.types import Command
 from sqlalchemy import select
 
+from app.agents import audit
 from app.agents.checkpointer import checkpointer
 from app.agents.graph import build_graph
 from app.agents.prompts import AGENT_VERSION
 from app.agents.tools import ToolContext
 from app.config import get_settings
 from app.db import async_session_factory
-from app.ingestion.queue import enqueue_resume
+from app.ingestion.queue import enqueue_resume, enqueue_run
 from app.models import (
     Approval,
     ApprovalStatus,
@@ -47,6 +48,14 @@ async def execute_run(ctx: dict[str, Any], run_id: str, org_id: str) -> str:
         if run is None or run.org_id != org_uuid:
             logger.warning("run %s not found in org %s", run_id, org_id)
             return "missing"
+
+        # Count the attempt before doing any work, so a run that kills its
+        # worker outright still has the attempt recorded. Counting on success
+        # or on a caught exception would miss exactly the failure mode this
+        # protects against — the one that never comes back to write anything.
+        run.attempts = (run.attempts or 0) + 1
+        if run.attempts > settings.max_run_attempts:
+            return await _dead_letter(session, run)
 
         run.status = RunStatus.running
         run.started_at = datetime.now(UTC)
@@ -227,7 +236,29 @@ async def recover_stranded_runs() -> int:
             for run in orphaned:
                 logger.warning("recovering run %s: decided approval never resumed", run.id)
                 await enqueue_resume(run.id, run.org_id)
-            return len(stranded) + len(orphaned)
+
+            # Never-started: the run row committed but the queued job is gone —
+            # Redis restarted, evicted it, or the enqueue itself failed. Nothing
+            # in `queued` is waiting on a human, so past the cutoff it is
+            # waiting on a message that no longer exists (spec 05 §4).
+            never_started = (
+                (
+                    await session.execute(
+                        select(Run).where(
+                            Run.status == RunStatus.queued,
+                            Run.created_at < cutoff,
+                            Run.attempts < settings.max_run_attempts,
+                        )
+                    )
+                )
+                .scalars()
+                .all()
+            )
+            for run in never_started:
+                logger.warning("recovering run %s: queued but never picked up", run.id)
+                await enqueue_run(run.id, run.org_id)
+
+            return len(stranded) + len(orphaned) + len(never_started)
     except Exception:  # noqa: BLE001 - recovery is best-effort housekeeping
         # A worker that refuses to start because a *recovery* query failed is
         # strictly worse than one that starts without recovering. This fires on
@@ -235,6 +266,36 @@ async def recover_stranded_runs() -> int:
         # so `runs` does not exist yet and the query raises UndefinedTableError.
         logger.warning("stranded-run recovery skipped", exc_info=True)
         return 0
+
+
+async def _dead_letter(session: Any, run: Run) -> str:
+    """Stop retrying a run that has exhausted its attempts (spec 05 §4).
+
+    Terminal, and visible: it lands on the run detail page as a typed failure
+    reason like any other, so a poisoned run is something an operator finds
+    rather than something they notice missing. The alternative — leaving it on
+    the queue — spends a worker slot per redelivery forever.
+    """
+    settings = get_settings()
+    run.status = RunStatus.failed
+    run.failure_reason = FailureReason.dead_letter
+    run.error = (
+        f"dead-lettered after {run.attempts} attempts "
+        f"(max {settings.max_run_attempts}); the job was redelivered without "
+        "ever completing"
+    )
+    run.finished_at = datetime.now(UTC)
+    await session.commit()
+    logger.error("run %s dead-lettered after %d attempts", run.id, run.attempts)
+    await audit.record(
+        org_id=run.org_id,
+        run_id=run.id,
+        actor="system:worker",
+        tool="run.dead_letter",
+        payload={"attempts": run.attempts, "max_attempts": settings.max_run_attempts},
+        result={"status": RunStatus.failed.value},
+    )
+    return RunStatus.failed.value
 
 
 async def _finalize_decision(session: Any, run: Run, state: dict[str, Any]) -> str:

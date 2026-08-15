@@ -49,6 +49,11 @@ class Settings(BaseSettings):
     chunk_overlap_tokens: int = 50
     run_timeout_seconds: int = 300
     worker_concurrency: int = 4
+    # How many times a run may be picked up before it is dead-lettered
+    # (spec 05 §4). Low on purpose: a job that has already killed its worker
+    # twice is not going to succeed on the fifth try, it is going to occupy a
+    # worker slot five times.
+    max_run_attempts: int = 3
     # Per-write-tool timeout; well under run_timeout so a hung adapter surfaces
     # as a tool failure with its own retry, not as a whole-run timeout.
     tool_timeout_seconds: int = 30

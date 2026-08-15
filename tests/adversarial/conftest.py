@@ -1,4 +1,8 @@
-"""Shared live-stack fixtures for Phase 2 adversarial probes."""
+"""Shared live-stack fixtures for adversarial probes."""
+
+import os
+
+import pytest
 
 from tests.phase2.conftest import (
     corpus_org_id,
@@ -19,6 +23,17 @@ from tests.phase3.conftest import (
     phase3_org_id,
     phase3_principals,
 )
+from tests.phase4.conftest import phase4_client, phase4_principals
+
+
+@pytest.fixture(scope="session")
+def phase4_database_url() -> str:
+    """Use the Phase 4-specific URL when set, otherwise CI's shared URL."""
+    value = os.environ.get("PHASE4_DATABASE_URL", os.environ.get("DATABASE_URL"))
+    if not value:
+        pytest.skip("PHASE4_DATABASE_URL or DATABASE_URL is required")
+    return value
+
 
 __all__ = [
     "approver_user_ids",
@@ -35,5 +50,8 @@ __all__ = [
     "phase3_evidence_ready",
     "phase3_org_id",
     "phase3_principals",
+    "phase4_client",
+    "phase4_database_url",
+    "phase4_principals",
     "repository_root",
 ]

@@ -23,9 +23,11 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "backend"))
+sys.path.insert(0, str(REPO_ROOT / "scripts"))
 
 from app.db import async_session_factory, engine
 from app.models import Document, Organization
+from dev_token import auth_header
 from sqlalchemy import delete, select
 
 CORPUS_DIR = REPO_ROOT / "fixtures" / "enterprise"
@@ -77,7 +79,8 @@ def _upload(base_url: str, org_id: uuid.UUID, path: Path) -> str:
         method="POST",
         headers={
             "Content-Type": f"multipart/form-data; boundary={boundary}",
-            "X-Org-Id": str(org_id),
+            # Phase 4: the tenant is the token's, not the header's.
+            **auth_header(base_url),
         },
     )
     with urllib.request.urlopen(request, timeout=60) as response:
@@ -94,7 +97,7 @@ def _await_ingestion(
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         request = urllib.request.Request(
-            f"{base_url}/api/documents", headers={"X-Org-Id": str(org_id)}
+            f"{base_url}/api/documents", headers=auth_header(base_url)
         )
         with urllib.request.urlopen(request, timeout=30) as response:
             documents = json.load(response)

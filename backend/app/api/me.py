@@ -14,6 +14,18 @@ from app.auth.principal import Principal, current_principal
 
 router = APIRouter()
 
+# Deliberately no /api/auth/config endpoint. Serving the Auth0 domain and
+# client id from the backend would read nicely — the frontend could never
+# disagree with the server about which provider is live — but it has to be
+# readable before a token exists, so it would be a second unauthenticated
+# route, and G4.1 would need an exemption entry to stay green.
+#
+# D18 decision 5 rejected auth exemption lists on the grounds that they decay.
+# Adding one for our own convenience, in the same phase, is not a trade worth
+# making for configuration that a SPA can perfectly well receive at build time
+# (VITE_AUTH0_*). None of it is secret; a public client id is an identifier,
+# which is why PKCE exists.
+
 
 class MeResponse(BaseModel):
     # `id`, not `user_id`: this resource *is* the user, so it names itself the

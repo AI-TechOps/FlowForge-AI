@@ -19,6 +19,10 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from dev_token import auth_header
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 FIXTURE = REPO_ROOT / "fixtures" / "eval_tickets.json"
 # A run that rests at `awaiting_approval` has finished triaging (Phase 3
@@ -27,10 +31,25 @@ SETTLED = {"completed", "failed", "awaiting_approval"}
 SCOREABLE = {"completed", "awaiting_approval"}
 
 
+_TOKENS: dict[str, dict[str, str]] = {}
+
+
+def _auth_header(url: str) -> dict[str, str]:
+    """One token per origin, reused across the whole run."""
+    origin = url.split("/api/", 1)[0]
+    if origin not in _TOKENS:
+        _TOKENS[origin] = auth_header(origin)
+    return _TOKENS[origin]
+
+
 def _request(url: str, method: str = "GET", org_id: str | None = None) -> dict:
     request = urllib.request.Request(url, method=method)
-    if org_id:
-        request.add_header("X-Org-Id", org_id)
+    # Phase 4: the tenant comes from the token, not from a header. org_id is
+    # still accepted so the call sites read the same, but it no longer selects
+    # anything -- the token's user does.
+    del org_id
+    for name, value in _auth_header(url).items():
+        request.add_header(name, value)
     with urllib.request.urlopen(request, timeout=30) as response:
         return json.load(response)
 

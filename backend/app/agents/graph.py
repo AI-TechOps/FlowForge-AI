@@ -18,8 +18,10 @@ from typing import Any, TypedDict
 
 from langchain_core.runnables import RunnableConfig
 from langgraph.graph import END, StateGraph
+from langgraph.types import interrupt
 
 from app.agents import audit
+from app.agents.actions import classify_risk, derive_actions
 from app.agents.prompts import (
     AGENT_VERSION,
     REPAIR_PROMPT,
@@ -31,6 +33,7 @@ from app.agents.tools import ToolContext, get_tool
 from app.agents.validate import is_grounded, parse_triage_result, valid_citations
 from app.llm.cost import estimate_cost
 from app.llm.provider import get_provider
+from app.models import Decision
 
 logger = logging.getLogger(__name__)
 
@@ -49,6 +52,14 @@ class TriageState(TypedDict, total=False):
     failure_reason: str | None
     error: str | None
     agent_version: str
+    # Phase 3. Everything here must stay JSON-serializable: it is checkpointed
+    # to Postgres across the pause and reloaded by a different process.
+    proposed_actions: list[dict[str, Any]]
+    risk_class: str
+    decision: dict[str, Any]
+    approved_actions: list[dict[str, Any]]
+    executed_actions: list[dict[str, Any]]
+    rejected: bool
 
 
 def _context(config: RunnableConfig) -> ToolContext:
@@ -202,16 +213,70 @@ async def ground_check(state: TriageState, config: RunnableConfig) -> TriageStat
 
 
 async def propose(state: TriageState, config: RunnableConfig) -> TriageState:
-    """Final node for Phase 2 — the proposal is recorded, nothing is executed.
+    """Derive the concrete write actions a human will be asked to authorise.
 
-    Phase 3 inserts the durable interrupt directly after this node.
+    The model classified; code decides what that classification *does*
+    (D17 decision 1). Nothing is executed here — the next node is the pause.
     """
     result = dict(state.get("result") or {})
     # requires_approval is derived, never taken from the model (spec 03 §5):
     # the proposed action is a write tool, and write tools are always gated.
     result["requires_approval"] = True
     result["citations"] = state.get("citations", [])
-    return {"result": result}
+
+    proposal = derive_actions(TriageResult.model_validate(result), state.get("ticket", {}))
+    return {
+        "result": result,
+        "proposed_actions": proposal.as_list(),
+        "risk_class": classify_risk(proposal, state.get("ticket", {})).value,
+    }
+
+
+async def await_approval(state: TriageState, config: RunnableConfig) -> TriageState:
+    """The durable pause (D8, spec 04 §4) — the architectural centerpiece.
+
+    `interrupt()` raises `GraphInterrupt`, LangGraph checkpoints the state to
+    Postgres, and the job ends. The request does not block: the approver may
+    decide hours later, in a different process, after a restart. The decision
+    comes back as the resume value, so the graph carries no approval-specific
+    plumbing of its own.
+
+    On the resumed pass this same call returns that value instead of raising.
+    """
+    decision = interrupt(
+        {
+            "reason": "approval_required",
+            "proposed_actions": state.get("proposed_actions", []),
+            "risk_class": state.get("risk_class"),
+        }
+    )
+    if not isinstance(decision, dict):
+        raise TypeError(f"approval resume expected a decision mapping, got {type(decision)}")
+
+    if decision.get("decision") == Decision.rejected.value:
+        # No write occurs on reject — the graph short-circuits before execute
+        # so there is no path from here to an adapter call (G3.2).
+        return {"decision": decision, "rejected": True}
+
+    # An edited decision replaces the action list wholesale; it was validated
+    # against each tool's schema at the endpoint before we ever got here.
+    final_actions = decision.get("final_values") or state.get("proposed_actions", [])
+    return {"decision": decision, "approved_actions": final_actions}
+
+
+async def execute(state: TriageState, config: RunnableConfig) -> TriageState:
+    """Execute the authorised actions through the approval-gated write tools.
+
+    Each tool carries its own idempotency, timeout, retry and confirmation, so
+    this node stays a loop: the guarantees live with the tool, not here.
+    """
+    context = _context(config)
+    executed: list[dict[str, Any]] = []
+    for action in state.get("approved_actions", []):
+        tool = get_tool(action["tool"])
+        outcome = await tool.invoke(context, action["args"])
+        executed.append({"tool": action["tool"], "outcome": outcome})
+    return {"executed_actions": executed}
 
 
 def _after_classify(state: TriageState) -> str:
@@ -222,6 +287,10 @@ def _after_ground_check(state: TriageState) -> str:
     return "failed" if state.get("failure_reason") else "propose"
 
 
+def _after_approval(state: TriageState) -> str:
+    return "rejected" if state.get("rejected") else "execute"
+
+
 def build_graph(checkpointer: Any | None = None) -> Any:
     graph = StateGraph(TriageState)
     graph.add_node("load_ticket", load_ticket)
@@ -229,6 +298,8 @@ def build_graph(checkpointer: Any | None = None) -> Any:
     graph.add_node("classify", classify)
     graph.add_node("ground_check", ground_check)
     graph.add_node("propose", propose)
+    graph.add_node("await_approval", await_approval)
+    graph.add_node("execute", execute)
 
     graph.set_entry_point("load_ticket")
     graph.add_edge("load_ticket", "retrieve_evidence")
@@ -239,5 +310,12 @@ def build_graph(checkpointer: Any | None = None) -> Any:
     graph.add_conditional_edges(
         "ground_check", _after_ground_check, {"propose": "propose", "failed": END}
     )
-    graph.add_edge("propose", END)
+    graph.add_edge("propose", "await_approval")
+    # Reject terminates without ever reaching `execute`: there is no edge from
+    # the rejected branch to a write, which is what makes G3.2 structural
+    # rather than a runtime check that could be bypassed.
+    graph.add_conditional_edges(
+        "await_approval", _after_approval, {"execute": "execute", "rejected": END}
+    )
+    graph.add_edge("execute", END)
     return graph.compile(checkpointer=checkpointer)

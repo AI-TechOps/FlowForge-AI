@@ -21,7 +21,10 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 FIXTURE = REPO_ROOT / "fixtures" / "eval_tickets.json"
-TERMINAL = {"completed", "failed"}
+# A run that rests at `awaiting_approval` has finished triaging (Phase 3
+# pauses there for a human); its structured output is final and scoreable.
+SETTLED = {"completed", "failed", "awaiting_approval"}
+SCOREABLE = {"completed", "awaiting_approval"}
 
 
 def _request(url: str, method: str = "GET", org_id: str | None = None) -> dict:
@@ -36,7 +39,7 @@ def _await_run(base_url: str, run_id: str, org_id: str | None, timeout: float) -
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         run = _request(f"{base_url}/api/runs/{run_id}", org_id=org_id)
-        if run["status"] in TERMINAL:
+        if run["status"] in SETTLED:
             return run
         time.sleep(2)
     return {"status": "timeout", "output": None, "failure_reason": "harness_timeout"}
@@ -83,7 +86,7 @@ def main() -> int:
         )
         output = run.get("output") or {}
 
-        if run["status"] != "completed":
+        if run["status"] not in SCOREABLE:
             failed += 1
             rows.append(
                 (ticket["external_ref"], run.get("failure_reason") or run["status"], "")
@@ -105,12 +108,17 @@ def main() -> int:
     for ref, result, marks in rows:
         print(f"{ref:<10} {result!s:<22} {marks}")
 
-    print(f"\nruns: {total}  completed: {scored}  failed: {failed}")
-    if scored:
+    print(f"\nruns: {total}  scoreable: {scored}  failed: {failed}")
+    # Denominator is every ticket attempted, matching
+    # tests/phase2/test_eval_smoke_gate.py. Scoring over completed runs only
+    # would let an agent that fails half its tickets report a flattering
+    # number, and would hide a regression that shows up as more failures
+    # rather than more wrong answers.
+    if total:
         for field in fields:
-            pct = 100.0 * correct[field] / scored
-            print(f"  {field:<18} {correct[field]:>2}/{scored}  {pct:5.1f}%")
-        category_accuracy = 100.0 * correct["category"] / scored
+            pct = 100.0 * correct[field] / total
+            print(f"  {field:<18} {correct[field]:>2}/{total}  {pct:5.1f}%")
+        category_accuracy = 100.0 * correct["category"] / total
         print(
             f"\nG2.4 bar: category accuracy >= 70%  ->  {'PASS' if category_accuracy >= 70 else 'FAIL'}"
         )

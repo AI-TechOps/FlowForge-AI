@@ -127,6 +127,51 @@ Triage quality is tracked in [`eval/baseline.md`](eval/baseline.md) — run
 `python scripts/eval_baseline.py` against a **real** model (the fake provider's accuracy
 is noise by design).
 
+## Write actions & human approval (Phase 3)
+
+Triage no longer ends at a recommendation: it derives concrete write actions, **pauses**,
+and waits for a human.
+
+```bash
+# Triage now pauses instead of completing
+RUN=$(curl -s -X POST localhost:8000/api/tickets/$TICKET/triage \
+  | python -c 'import json,sys; print(json.load(sys.stdin)["id"])')
+curl -s localhost:8000/api/runs/$RUN      # -> "status": "awaiting_approval"
+
+# The approval inbox, and the card a human decides from
+curl -s "localhost:8000/api/approvals?status=pending"
+curl -s localhost:8000/api/approvals/$APPROVAL | python -m json.tool
+
+# Decide. X-User-Id names the approver (Phase 4 replaces it with real auth).
+curl -X POST localhost:8000/api/approvals/$APPROVAL/decision \
+  -H 'Content-Type: application/json' -H "X-User-Id: $APPROVER_ID" \
+  -d '{"decision":"approved"}'
+
+# ...or override the agent, or refuse it outright
+  -d '{"decision":"edited","final_values":[{"tool":"change_ticket_priority",
+       "args":{"ticket_id":"'$TICKET'","priority":"P3"}}]}'
+  -d '{"decision":"rejected","feedback":"not urgent"}'
+```
+
+Properties worth knowing, because they are what make the gate real rather than decorative:
+
+- **The pause is durable.** `interrupt()` checkpoints to Postgres and the job *ends*. Restart
+  the backend and worker mid-pause and the run still resumes and completes (G3.1) — the
+  approver may decide hours later, in a different process.
+- **Reject cannot write.** There is no graph edge from the rejected branch to `execute`, so
+  "no write on reject" is structural, not a runtime check (G3.2).
+- **At most once.** Every write claims a row in `tool_executions` (unique on run + tool +
+  args hash) *before* calling the adapter, so a replay or a concurrent resume returns the
+  stored result instead of writing again (G3.3).
+- **Writes are confirmed.** After executing, the ticket is re-fetched and the field checked;
+  a write that reports success without landing fails the run (G3.5).
+- **Edits are validated at the API.** An invalid edited value is a 422 on the approver's
+  request, never a run that dies halfway through the write path (G3.4). Both the original
+  and edited proposals are retained.
+
+`[[FLOWFORGE_TICKET_FAULT:timeout|error]]` in a ticket description injects an adapter
+failure for one run, so the retry and no-phantom-write paths can be exercised (G3.6).
+
 ## Phase 0 definition-of-done walkthrough
 
 1. `docker compose -f infra/docker-compose.yml up --build` — all four services start; db and redis have healthchecks, backend waits for both.

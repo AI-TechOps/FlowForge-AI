@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from .conftest import Phase2Client, triage_and_wait
+from .conftest import TRIAGE_SUCCESS_STATUSES, Phase2Client, triage_and_wait
 
 
 def _require_armed_gate() -> None:
@@ -107,9 +107,13 @@ def test_g2_4_seed_set_category_accuracy_is_at_least_seventy_percent(
 
         output = run.get("output")
         predicted = output.get("category") if isinstance(output, dict) else None
-        if run.get("status") == "completed":
+        # From Phase 3 a successful triage rests at `awaiting_approval` with its
+        # output final; scoring only `completed` would report 0% accuracy for a
+        # perfectly good agent. (Phase 5's eval mode runs the graph to `propose`
+        # without an interrupt — spec 06 §2 — which removes the ambiguity.)
+        if run.get("status") in TRIAGE_SUCCESS_STATUSES:
             assert isinstance(output, dict), (
-                f"completed seed run has no structured output: {run!r}"
+                f"settled seed run has no structured output: {run!r}"
             )
             triage_result.model_validate(output)
             if predicted == expected:

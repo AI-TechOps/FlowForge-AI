@@ -149,6 +149,10 @@ jobs:
           PHASE1_DATABASE_URL: postgresql+asyncpg://flowforge:flowforge@localhost:5432/flowforge
           PHASE1_COMPOSE_FILE: ${{ github.workspace }}/infra/docker-compose.yml
           PHASE1_BASE_URL: http://localhost:8000
+          # Any gate that imports app/ needs these: app/db.py builds the
+          # engine at import time. The Phase 2 taxonomy parity test does.
+          DATABASE_URL: postgresql+asyncpg://flowforge:flowforge@localhost:5432/flowforge
+          REDIS_URL: redis://localhost:6379/0
         run: pytest tests/phase1 -v --tb=short
 
       # G2.4 (seed-set accuracy) skips here by design: it is opt-in via
@@ -162,7 +166,26 @@ jobs:
           PHASE2_DATABASE_URL: postgresql+asyncpg://flowforge:flowforge@localhost:5432/flowforge
           PHASE2_COMPOSE_FILE: ${{ github.workspace }}/infra/docker-compose.yml
           PHASE2_BASE_URL: http://localhost:8000
+          # Any gate that imports app/ needs these: app/db.py builds the
+          # engine at import time. The Phase 2 taxonomy parity test does.
+          DATABASE_URL: postgresql+asyncpg://flowforge:flowforge@localhost:5432/flowforge
+          REDIS_URL: redis://localhost:6379/0
         run: pytest tests/phase2 -v --tb=short
+
+      # PHASE3_MANAGE_BACKEND lets G3.1 restart the backend mid-pause. Without
+      # it that test skips — and a skipped durability gate protects nothing,
+      # since the durable pause is the whole point of this phase.
+      - name: Run Phase 3 gates (G3.1-G3.7)
+        env:
+          PHASE3_REQUIRE_LIVE: "1"
+          PHASE3_MANAGE_STACK: "1"
+          PHASE3_MANAGE_BACKEND: "1"
+          PHASE3_DATABASE_URL: postgresql+asyncpg://flowforge:flowforge@localhost:5432/flowforge
+          PHASE3_COMPOSE_FILE: ${{ github.workspace }}/infra/docker-compose.yml
+          PHASE3_BASE_URL: http://localhost:8000
+          DATABASE_URL: postgresql+asyncpg://flowforge:flowforge@localhost:5432/flowforge
+          REDIS_URL: redis://localhost:6379/0
+        run: pytest tests/phase3 -v --tb=short
 
       # Codex's adversarial probes. Several drive the live stack (credential
       # handling, cross-tenant run detail, rollback behaviour), so they belong

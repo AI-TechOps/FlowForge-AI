@@ -5,6 +5,7 @@ from pathlib import Path
 from uuid import uuid4
 
 from .conftest import (
+    TRIAGE_SUCCESS_STATUSES,
     Phase2Client,
     audit_entries_from,
     document_id_from,
@@ -99,7 +100,7 @@ def test_g2_6_run_cannot_read_ticket_or_retrieve_evidence_from_another_org(
     ticket_a_id = ticket_id_from(ticket_a)
     run_id = run_id_from(phase2_client.triage(org_a_id, ticket_a_id))
     run = wait_for_run(phase2_client, org_id=org_a_id, run_id=run_id)
-    assert run["status"] == "completed", run
+    assert run["status"] in TRIAGE_SUCCESS_STATUSES, run
 
     evidence = evidence_from(run)
     evidence_chunk_ids = _chunk_ids(evidence)

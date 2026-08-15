@@ -18,7 +18,23 @@ import pytest
 
 DEFAULT_BASE_URL = "http://localhost:8000"
 DEFAULT_ORG_HEADER = "X-Org-ID"
-TERMINAL_RUN_STATUSES = {"completed", "rejected", "failed"}
+# Statuses at which *triage* has finished and a Phase 2 gate may inspect the run.
+#
+# `awaiting_approval` is settled from Phase 2's point of view: spec 04 §4 ends
+# triage at the durable pause, so a run resting there has produced its full
+# structured output, evidence and audit trail — everything G2.1-G2.6 assert on.
+# It is not a terminal *run* status (Phase 3 resumes it), which is why the name
+# says "settled for triage" rather than "terminal".
+#
+# Without it, every Phase 2 gate that waits for a run times out once Phase 3
+# lands, and the failure looks like a triage regression rather than the
+# intended new pause.
+TERMINAL_RUN_STATUSES = {"completed", "rejected", "failed", "awaiting_approval"}
+# Statuses meaning "triage produced a valid result". From Phase 3 a successful
+# triage rests at `awaiting_approval` rather than `completed` — the run is not
+# finished, but everything Phase 2 gates on (structured output, evidence,
+# citations, audit trail) is present and final. `failed` is still a failure.
+TRIAGE_SUCCESS_STATUSES = {"completed", "awaiting_approval"}
 READ_TOOL_NAMES = {"get_ticket", "search_company_knowledge"}
 
 

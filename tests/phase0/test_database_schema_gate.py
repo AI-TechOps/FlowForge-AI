@@ -73,21 +73,24 @@ def test_migrated_schema_contains_only_the_expected_domain_tables(
         ORDER BY table_name;
         """,
     )
-    # Head is 0003. The list is the union of every approved spec's tables:
+    # Head is 0004. The list is the union of every approved spec's tables:
     # Phase 0 tenancy (organizations/users/user_roles), Phase 1 RAG
     # (documents/chunks, spec 02 task 1), Phase 2 triage (tickets/runs/
-    # audit_log, spec 03 task 2).
+    # audit_log, spec 03 task 2), Phase 3 approval (approvals/tool_executions,
+    # spec 04 task 1).
     #
     # Deliberately an exact list, not a subset check: a table nobody approved
     # is exactly what this gate exists to catch, so each phase that adds one
-    # has to say so here. Phase 3 adds `approvals`.
+    # has to say so here.
     assert tables == [
+        "approvals",
         "audit_log",
         "chunks",
         "documents",
         "organizations",
         "runs",
         "tickets",
+        "tool_executions",
         "user_roles",
         "users",
     ]

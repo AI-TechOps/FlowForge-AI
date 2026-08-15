@@ -36,6 +36,11 @@ class ToolContext:
     org_id: uuid.UUID
     run_id: uuid.UUID | None = None
     actor: str = "agent"
+    # Set ONLY by the approval resume path, after loading a decided approval.
+    # Default False so an approval-gated tool refuses by default: the safety
+    # property should not depend on every future caller happening to reach the
+    # tool through the right graph edge.
+    approval_granted: bool = False
 
 
 class ToolPermissionError(RuntimeError):
@@ -152,6 +157,8 @@ async def _get_ticket(context: ToolContext, args: GetTicketArgs) -> dict[str, An
         "department": ticket.department,
         "service": ticket.service,
         "priority": ticket.priority,
+        "assigned_team": ticket.assigned_team,
+        "internal_notes": ticket.internal_notes,
         "status": ticket.status.value,
         "external_ref": ticket.external_ref,
     }
@@ -170,6 +177,16 @@ REGISTRY: dict[str, Tool[Any]] = {
     search_company_knowledge.name: search_company_knowledge,
     get_ticket.name: get_ticket,
 }
+
+
+def register(tool: Tool[Any]) -> None:
+    """Add a tool to the registry.
+
+    Write tools register themselves at import (app.agents.write_tools) rather
+    than being listed here, so this module stays free of any dependency on the
+    ticket-system adapter and the read tools remain usable on their own.
+    """
+    REGISTRY[tool.name] = tool
 
 
 def get_tool(name: str) -> Tool[Any]:

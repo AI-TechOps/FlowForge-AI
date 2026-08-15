@@ -8,6 +8,7 @@ import pytest
 
 from .conftest import (
     READ_TOOL_NAMES,
+    TRIAGE_SUCCESS_STATUSES,
     Phase2Client,
     audit_entries_from,
     llm_audit_entries,
@@ -92,7 +93,7 @@ def test_g2_5_graph_call_trace_exactly_matches_complete_audit_rows(
         ),
         service="Meridian identity",
     )
-    assert run["status"] == "completed", run
+    assert run["status"] in TRIAGE_SUCCESS_STATUSES, run
 
     entries = audit_entries_from(run)
     names = [operation_name(entry) for entry in entries]

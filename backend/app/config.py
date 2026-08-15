@@ -37,6 +37,13 @@ class Settings(BaseSettings):
     chunk_overlap_tokens: int = 50
     run_timeout_seconds: int = 300
     worker_concurrency: int = 4
+    # Per-write-tool timeout; well under run_timeout so a hung adapter surfaces
+    # as a tool failure with its own retry, not as a whole-run timeout.
+    tool_timeout_seconds: int = 30
+    # Fault injection for the mock ticket system (dev/CI only):
+    # none | timeout | error. A per-ticket [[FLOWFORGE_TICKET_FAULT:mode]]
+    # directive overrides it for a single run.
+    mock_ticket_fault: str = "none"
 
 
 @lru_cache

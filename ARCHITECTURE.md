@@ -156,9 +156,10 @@ Ingestion runs as a **background job** (Redis queue) — uploads return immediat
 | user_roles | user_id, role, created_at | role grants (admin/operator/approver); one row per grant, PK (user_id, role) |
 | documents | id, org_id, title, version, status, file_ref, error_message | uploaded knowledge |
 | chunks | id, org_id, document_id, chunk_index, text, embedding vector, embedding_model, page, section, token_count | RAG units; org_id denormalized for direct tenant filtering |
-| tickets | id, org_id, title, description, department, service, priority, status, external_ref, is_eval_seed, created_by | the issues |
+| tickets | id, org_id, title, description, department, service, priority, assigned_team, internal_notes jsonb, status, external_ref, is_eval_seed, created_by | the issues. `department` is the REQUESTER's org unit; `assigned_team` is the write target of `assign_ticket` — different concepts |
 | runs | id, org_id, ticket_id, status, agent_version, confidence, output jsonb, checkpoint ref | one triage execution |
-| approvals | id, org_id, run_id, approver_user_id, decision, original_proposal jsonb, final_values jsonb, feedback, risk_class, decided_at, created_at | human decisions |
+| approvals | id, org_id, run_id, status, approver_user_id, decision, original_proposal jsonb, final_values jsonb, feedback, risk_class, decided_at, created_at | human decisions. `status` (pending/decided) is separate from `decision` so the one-shot rule is a single compare-and-swap |
+| tool_executions | id, org_id, run_id, tool, args_hash, args jsonb, result jsonb, confirmed | idempotency ledger; UNIQUE (run_id, tool, args_hash) is the at-most-once guarantee for write tools |
 | audit_log | id, org_id, run_id, actor, tool, payload jsonb, result, latency_ms, tokens, cost, created_at | immutable trail |
 | eval_results | id, org_id, run_id, ticket_id, expected jsonb, actual jsonb, scores jsonb, judge_model, eval_batch_id | scoring vs labeled set |
 | eval_batches | id, org_id, agent_version, started_at, finished_at, summary jsonb | one eval run over the seed set |
@@ -166,6 +167,11 @@ Ingestion runs as a **background job** (Redis queue) — uploads return immediat
 Ticket status lifecycle: `new → triaged → actioned` (plus `closed`).
 
 Run status lifecycle: `queued → running → awaiting_approval → executing → completed | rejected | failed`.
+
+The pause between `awaiting_approval` and `executing` is a LangGraph `interrupt()` checkpointed to
+Postgres, not an in-memory wait: the job ends, and a *different* worker process resumes from the
+checkpoint whenever the human decides. LangGraph owns its own checkpoint tables (created by
+`saver.setup()`, deliberately outside Alembic — they are the library's schema, versioned with it).
 
 ---
 

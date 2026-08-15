@@ -5,6 +5,12 @@ human and enforces roles. Nothing outside this package names an identity
 provider.
 """
 
+from app.auth.principal import (
+    Principal,
+    current_org_id,
+    current_principal,
+    require_roles,
+)
 from app.auth.provider import (
     AuthProvider,
     InvalidToken,
@@ -18,7 +24,11 @@ __all__ = [
     "AuthProvider",
     "InvalidToken",
     "LocalDevProvider",
+    "Principal",
     "TokenClaims",
     "bearer_token",
+    "current_org_id",
+    "current_principal",
     "get_auth_provider",
+    "require_roles",
 ]

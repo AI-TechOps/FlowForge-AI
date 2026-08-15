@@ -196,12 +196,31 @@ The 12-task plan lives in `specs/04-phase3-actions-approval.md`; tasks 10–11 a
 
 ---
 
-## Open items (as of 2026-08-09)
+## D18 — Phase 4 review gate resolved (2026-08-15)
+
+Phase 3 is built and merged (PR #9). G3.1–G3.7 pass, and all six findings from Codex's adversarial pass are fixed. The Phase 4 spec is **Approved** with seven decisions:
+
+1. **Auth goes behind a provider abstraction, like the LLM does.** `Auth0Provider` validates against the real tenant's JWKS; a local dev issuer generates a keypair at startup and **refuses to load when `APP_ENV=prod`**, exactly as the `fake` LLM provider does. The decisive property is that *validation* is a single code path — same JWT verify, same claims, same JWKS interface — so G4.1–G4.6 exercise the real enforcement offline and only the issuer differs. An Auth0-only build would make the gates unrunnable in CI, and a test-only bypass header would make them prove nothing about the path that actually ships.
+2. **Auth0's access token is validated per request; we issue no token of our own.** Stateless, with a cached JWKS. Rejected issuing a session JWT: it adds a signing key to protect and rotate plus a revocation story, and buys nothing here because roles do not travel in the token (see 3), so there are no custom claims to mint.
+3. **Roles live in our database, not in Auth0 claims.** The token establishes *who* (the `sub`); `user_roles` (D14) establishes what they may do. Keeps IdP config trivial, makes the role matrix testable without touching Auth0, and means a revoked role takes effect on the next request rather than the next token refresh.
+4. **No administrator override on approval decisions.** Administrator is a configuration role, not an authorization role; letting it approve would put the same principal on both sides of D4/D5 segregation of duties. A person who must approve receives an explicit approver grant, which the personas doc already permits. The full role matrix lives in `specs/05-phase4-auth-tenant.md`.
+5. **Dev-only routes authenticate like everything else** and additionally keep their prod 404 guard — two independent controls. An auth exemption list was rejected: it is precisely the construct that decays, and it would leave unauthenticated routes reading run data in shared dev and CI.
+6. **Poison messages dead-letter through the existing typed-failure machinery** — a `dead_letter` value on `FailureReason` plus an attempt counter on `runs` — rather than a separate DLQ table. One migration, no new surface, and a dead-lettered run stays visible where operators already look.
+7. **Tenant scoping is a narrow helper plus an automated unscoped-query check**, not a repository layer. A full repository rewrite of Phases 1–3 inside the phase that already retrofits auth across every router is too much change at once; the automated check is what stops D7 from depending on reviewer attention, which has already failed once (Codex F6). Postgres RLS remains the deferred production answer in ARCHITECTURE.md.
+
+The 16-task plan lives in `specs/05-phase4-auth-tenant.md`; tasks 2, 13 and 16 are Codex's.
+
+---
+
+## Open items (as of 2026-08-15)
 
 - **G1.5 (Phase 1) is now on the critical path.** `fixtures/eval_tickets.json`, `fixtures/retrieval_checks.json`, and `fixtures/enterprise/taxonomy.json` still carry `review_status: draft_pending_code_owner_review`. G2.4 cleared its bar by a small margin against labels nobody has signed off, and Phase 5's formal eval inherits the same answer key. **EVAL-012 and EVAL-019 were mis-categorised identically in two independent runs** — either a consistent model blind spot or two wrong labels, and they are the first worth a human look.
 - ~~**Eval denominator inconsistent between tools.**~~ **Closed in Phase 3.** `scripts/eval_baseline.py` now scores over every ticket attempted, matching the gate, and both treat a run resting at `awaiting_approval` as scoreable — Phase 3's pause would otherwise have reported 0% for a working agent. Historic `eval/baseline.md` rows predate the change; the recorded 75% and 80% figures were already on the all-tickets basis.
-- **Build Phase 3** on `feat/phase3-actions-approval`: tasks 1–9 and 12 (Claude), 10–11 (Codex).
-- **Phase 4 spec review:** the next gate after Phase 3 is built.
+- ~~**Build Phase 3**~~ **Done.** Merged as PR #9; G3.1–G3.7 green and Codex's six adversarial findings fixed.
+- ~~**Phase 4 spec review**~~ **Resolved** as D18 above.
+- **Build Phase 4** on `feat/phase4-auth-tenant`: tasks 1, 3–12 and 14–15 (Claude), 2, 13 and 16 (Codex).
+- **An Auth0 tenant does not exist yet** and only a code owner can create one: one tenant, one SPA application, callback URLs, an API identifier, and the seed users. Until those values are in `.env`, Phase 4 develops entirely against the local dev issuer (D18 decision 1) — which is a supported path, not a workaround, but the Auth0 half of G4.1 stays unproven until a real tenant exists.
+- **Phases 0–3 gate suites will go red mid-phase.** Every one of them calls the API unauthenticated and starts 401ing the moment enforcement lands. They are Codex-owned files, so the retrofit is task 13 [CX] and it gates the phase: task 6 red-lights the earlier suites until task 13 lands. Planned, not a regression.
 - **Deferred, tracked in ARCHITECTURE.md** (recorded so they are found on purpose, not in an incident): HNSW index on `chunks.embedding`, Postgres RLS, value-level credential scanning in audit payloads, and a genuinely different eval-judge model.
 
 ---

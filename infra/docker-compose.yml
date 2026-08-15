@@ -39,6 +39,12 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       EMBEDDING_MODEL: ${EMBEDDING_MODEL:-nomic-embed-text}
       APP_ENV: ${APP_ENV:-dev}
+      # Identity provider (D18). "local" is an offline issuer for dev/CI and is
+      # refused when APP_ENV=prod; set AUTH_PROVIDER=auth0 with a real tenant.
+      AUTH_PROVIDER: ${AUTH_PROVIDER:-local}
+      AUTH0_DOMAIN: ${AUTH0_DOMAIN:-}
+      AUTH0_AUDIENCE: ${AUTH0_AUDIENCE:-flowforge-api}
+      AUTH0_CLIENT_ID: ${AUTH0_CLIENT_ID:-}
       TRIAGE_MODEL: ${TRIAGE_MODEL:-llama3.1:8b}
       FAKE_LLM_MODE: ${FAKE_LLM_MODE:-valid}
       UPLOAD_DIR: /data/uploads
@@ -67,6 +73,12 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       EMBEDDING_MODEL: ${EMBEDDING_MODEL:-nomic-embed-text}
       APP_ENV: ${APP_ENV:-dev}
+      # Identity provider (D18). "local" is an offline issuer for dev/CI and is
+      # refused when APP_ENV=prod; set AUTH_PROVIDER=auth0 with a real tenant.
+      AUTH_PROVIDER: ${AUTH_PROVIDER:-local}
+      AUTH0_DOMAIN: ${AUTH0_DOMAIN:-}
+      AUTH0_AUDIENCE: ${AUTH0_AUDIENCE:-flowforge-api}
+      AUTH0_CLIENT_ID: ${AUTH0_CLIENT_ID:-}
       TRIAGE_MODEL: ${TRIAGE_MODEL:-llama3.1:8b}
       FAKE_LLM_MODE: ${FAKE_LLM_MODE:-valid}
       UPLOAD_DIR: /data/uploads
@@ -82,6 +94,11 @@ services:
     build: ../frontend
     environment:
       API_PROXY_TARGET: http://backend:8000
+      # Read at build time by the SPA. Absent means the local dev issuer;
+      # see frontend/src/auth.ts for why this is not served by the API.
+      VITE_AUTH0_DOMAIN: ${AUTH0_DOMAIN:-}
+      VITE_AUTH0_CLIENT_ID: ${AUTH0_CLIENT_ID:-}
+      VITE_AUTH0_AUDIENCE: ${AUTH0_AUDIENCE:-}
     ports:
       - "5173:5173"
     depends_on:

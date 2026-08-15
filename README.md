@@ -60,8 +60,18 @@ docker compose -f infra/docker-compose.yml exec backend alembic upgrade head
 Seed the demo org from the host (backend deps installed locally: `pip install -e backend`, with `.env` pointing at localhost):
 
 ```bash
-python scripts/seed.py     # idempotent: demo org + admin@demo with administrator role
+python scripts/seed.py     # idempotent: demo org + the four seeded users below
 ```
+
+Seeded identities — operator and approver are **different people** on purpose, so
+the hand-off in the MVP journey is demonstrable rather than asserted (D4):
+
+| Email | Roles |
+|---|---|
+| `admin@demo` | administrator |
+| `operator@demo` | operator |
+| `approver@demo` | approver |
+| `demo@demo` | all three, for recording the demo with one narrator |
 
 ## LLM provider
 
@@ -171,6 +181,91 @@ Properties worth knowing, because they are what make the gate real rather than d
 
 `[[FLOWFORGE_TICKET_FAULT:timeout|error]]` in a ticket description injects an adapter
 failure for one run, so the retry and no-phantom-write paths can be exercised (G3.6).
+
+## Authentication, roles & tenancy (Phase 4)
+
+Every `/api` route except `/api/health` requires a bearer token. `org_id` comes from
+the authenticated principal and from nowhere else — the Phase 1–3 `X-Org-Id` /
+`X-User-Id` headers are gone, and a client-supplied org id in a header, query string
+or body changes nothing (G4.5).
+
+**Two providers, one verifier.** `backend/app/auth/provider.py` is the only module that
+knows an identity provider exists (D18 decision 1, mirroring the LLM provider):
+
+- `AUTH_PROVIDER=local` (default) — an offline issuer that generates an RS256 keypair
+  at startup. Refused when `APP_ENV=prod`.
+- `AUTH_PROVIDER=auth0` — validates the tenant's tokens against its JWKS.
+
+`AuthProvider.verify` is concrete, not abstract: both providers share one algorithm
+allow-list, one audience and issuer check, one expiry rule. A provider supplies a key
+and nothing else. That is what keeps the gates honest — they exercise the shipping
+verification path even with no Auth0 tenant reachable.
+
+**Roles live in `user_roles`, not in token claims** (D18 decision 3). The token says
+*who*; the database says what they may do, so revoking a role takes effect on the next
+request rather than the next token refresh.
+
+### Getting a token locally
+
+```bash
+TOKEN=$(python scripts/dev_token.py --email admin@demo)
+curl -H "Authorization: Bearer $TOKEN" localhost:8000/api/documents
+```
+
+Or use the frontend at http://localhost:5173 — with the local issuer it shows a button
+per seeded identity; against Auth0 it redirects to the hosted login.
+
+### Role matrix
+
+Enforced per endpoint and asserted cell by cell (G4.2); the full table lives in
+`specs/05-phase4-auth-tenant.md` §2.
+
+| | admin | operator | approver |
+|---|:--:|:--:|:--:|
+| Documents, retrieve, `/api/test/*` | ✅ | ❌ | ❌ |
+| Create ticket, start run | ✅ | ✅ | ❌ |
+| Read tickets, runs | ✅ | ✅ | ✅ |
+| Approval inbox | ✅ | ❌ | ✅ |
+| **Approval decision** | ❌ | ❌ | ✅ |
+
+**An administrator cannot approve.** Administrator is a configuration role; letting it
+decide would put one principal on both sides of segregation of duties (D4/D5, D18
+decision 4). Someone who must approve is granted the approver role explicitly.
+
+### Configuring a real Auth0 tenant
+
+One tenant, one application. In the Auth0 dashboard:
+
+1. **Applications → Create Application** → *Single Page Web Application*.
+2. In its **Settings**, set — replacing the host for a deployed stack:
+   - *Allowed Callback URLs*: `http://localhost:5173/callback`
+   - *Allowed Logout URLs*: `http://localhost:5173`
+   - *Allowed Web Origins*: `http://localhost:5173`
+3. **APIs → Create API**. The *Identifier* you choose is the token `aud` claim and must
+   match `AUTH0_AUDIENCE` exactly. `flowforge-api` is a fine choice.
+4. **User Management → Users** → create one user per seeded email above. There is no
+   self-signup: a valid token for an address that is not seeded gets 403, by design.
+5. Fill in `.env`:
+
+```bash
+AUTH_PROVIDER=auth0
+AUTH0_DOMAIN=your-tenant.eu.auth0.com   # no scheme
+AUTH0_AUDIENCE=flowforge-api
+AUTH0_CLIENT_ID=...                     # public: an identifier, not a credential
+```
+
+The frontend reads `VITE_AUTH0_DOMAIN`, `VITE_AUTH0_CLIENT_ID` and `VITE_AUTH0_AUDIENCE`
+at build time. There is no `/api/auth/config` endpoint on purpose — it would have to be
+readable before a token exists, making it a second unauthenticated route and forcing a
+G4.1 exemption, and D18 decision 5 rejected exemption lists.
+
+### Background jobs
+
+Job payloads carry org context and every job re-checks it. A run that exhausts
+`MAX_RUN_ATTEMPTS` (default 3) is **dead-lettered**: terminal, with
+`failure_reason=dead_letter`, visible on the run detail page beside every other failure
+rather than in a queue nobody reads. Postgres — not Redis — is the authority on
+outstanding work, so a run whose queued job is lost is re-enqueued by the reconciler.
 
 ## Phase 0 definition-of-done walkthrough
 

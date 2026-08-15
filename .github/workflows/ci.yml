@@ -187,6 +187,19 @@ jobs:
           REDIS_URL: redis://localhost:6379/0
         run: pytest tests/phase3 -v --tb=short
 
+      # G4.1-G4.6. These seed their own two organizations with a full set of
+      # principals in each, and mint tokens through the local dev issuer --
+      # which exercises the same verification path Auth0 would, so no tenant is
+      # needed here (D18 decision 1).
+      - name: Run Phase 4 gates (G4.1-G4.6)
+        env:
+          PHASE4_REQUIRE_LIVE: "1"
+          PHASE4_DATABASE_URL: postgresql+asyncpg://flowforge:flowforge@localhost:5432/flowforge
+          PHASE4_BASE_URL: http://localhost:8000
+          DATABASE_URL: postgresql+asyncpg://flowforge:flowforge@localhost:5432/flowforge
+          REDIS_URL: redis://localhost:6379/0
+        run: pytest tests/phase4 -v --tb=short
+
       # Codex's adversarial probes. Several drive the live stack (credential
       # handling, cross-tenant run detail, rollback behaviour), so they belong
       # here rather than in the Postgres-only fast job.

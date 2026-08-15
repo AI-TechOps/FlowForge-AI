@@ -3,8 +3,8 @@ which identity provider is active.
 
 Same shape as the LLM provider, and for the same reason. `Auth0Provider`
 validates against a real tenant's JWKS; `LocalDevProvider` mints and validates
-tokens from a keypair generated at startup, and the factory refuses it when
-`APP_ENV=prod`.
+tokens from a keypair it persists beside the uploads volume, and the factory
+refuses it when `APP_ENV=prod`.
 
 The property that makes this safe is that **verification is one code path**.
 `AuthProvider.verify` is concrete: same algorithm allow-list, same audience and
@@ -14,11 +14,13 @@ gates stop testing the code that ships — which is the entire objection to a
 test-only auth bypass.
 """
 
+import logging
 import time
 import uuid
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from functools import lru_cache
+from pathlib import Path
 from typing import Any
 
 import jwt
@@ -26,6 +28,8 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 
 from app.config import Settings, get_settings
+
+logger = logging.getLogger(__name__)
 
 # RS256 only. Deliberately an allow-list rather than trusting the token's own
 # `alg` header: accepting whatever the token asks for is how the `alg: none`
@@ -116,6 +120,43 @@ class AuthProvider(ABC):
         )
 
 
+def _generate_key() -> rsa.RSAPrivateKey:
+    # 2048 is the floor for RS256 and the fastest to generate; this runs at
+    # most once per container, not per request.
+    return rsa.generate_private_key(public_exponent=65537, key_size=2048)
+
+
+def _load_or_create_key(key_path: Path | None) -> rsa.RSAPrivateKey:
+    if key_path is None:
+        return _generate_key()
+    try:
+        if key_path.exists():
+            loaded = serialization.load_pem_private_key(key_path.read_bytes(), password=None)
+            if isinstance(loaded, rsa.RSAPrivateKey):
+                return loaded
+            logger.warning("dev issuer key at %s is not RSA; regenerating", key_path)
+
+        key = _generate_key()
+        key_path.parent.mkdir(parents=True, exist_ok=True)
+        key_path.write_bytes(
+            key.private_bytes(
+                encoding=serialization.Encoding.PEM,
+                format=serialization.PrivateFormat.PKCS8,
+                encryption_algorithm=serialization.NoEncryption(),
+            )
+        )
+        key_path.chmod(0o600)
+        return key
+    except OSError:
+        logger.warning(
+            "dev issuer key at %s is unusable; falling back to an ephemeral key "
+            "(tokens will not survive a restart)",
+            key_path,
+            exc_info=True,
+        )
+        return _generate_key()
+
+
 class Auth0Provider(AuthProvider):
     """Validates access tokens issued by an Auth0 tenant (D18 decision 2).
 
@@ -148,17 +189,23 @@ class LocalDevProvider(AuthProvider):
     and genuinely verified, and a forged or expired one is rejected by exactly
     the code that rejects an Auth0 token.
 
-    The keypair is generated per process and never persisted. A restart
-    invalidates outstanding tokens, which is correct for a dev issuer and
-    keeps a stray key off disk.
+    The keypair is persisted, deliberately. A per-process key looked tidier
+    and was wrong: restarting the backend would then invalidate every
+    outstanding token, and Auth0's keys plainly do not rotate because *we*
+    restarted. Phase 3's durability gate restarts the backend mid-run on
+    purpose, so a dev issuer that logged everyone out at that moment would be
+    testing a behaviour production does not have.
+
+    The key lives beside the uploads volume so it survives a container
+    restart, is written 0600, and never enters the repository. If it cannot be
+    read or written the issuer falls back to an ephemeral key: a dev login that
+    works until the next restart beats one that will not start.
     """
 
-    def __init__(self, audience: str) -> None:
+    def __init__(self, audience: str, key_path: Path | None = None) -> None:
         self.issuer = "https://local.flowforge.test/"
         self.audience = audience
-        # 2048 is the floor for RS256 and the fastest to generate; this runs
-        # once per process on a dev machine, not per request.
-        self._private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+        self._private_key = _load_or_create_key(key_path)
         self._public_key = self._private_key.public_key()
 
     def signing_key(self, token: str) -> Any:
@@ -223,7 +270,12 @@ def _build(settings: Settings) -> AuthProvider:
 
     if settings.app_env == "prod":
         raise ValueError("AUTH_PROVIDER=local is for dev/CI only, never prod.")
-    return LocalDevProvider(settings.auth0_audience or "flowforge-api")
+    # Beside the uploads volume, so it survives a container restart. See the
+    # LocalDevProvider docstring for why that matters.
+    return LocalDevProvider(
+        settings.auth0_audience or "flowforge-api",
+        Path(settings.upload_dir) / ".dev-issuer-key.pem",
+    )
 
 
 def bearer_token(header_value: str | None) -> str:

@@ -22,6 +22,9 @@ dependencies = [
     # bespoke persistence layer.
     "langgraph-checkpoint-postgres>=3.0",
     "psycopg[binary,pool]>=3.2",
+    # JWT verification (Phase 4). The [crypto] extra pulls in `cryptography`,
+    # which the local dev issuer also uses to generate its keypair.
+    "pyjwt[crypto]>=2.10",
 ]
 
 [project.optional-dependencies]

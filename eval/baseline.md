@@ -1,22 +1,132 @@
 # Triage eval baseline
 
-Regression table for G2.4 (Phase 2 smoke bar: **category accuracy ≥ 70%** over
-the 20 labeled seed tickets) and, from Phase 5, the formal eval batches.
-
-Reproduce:
-
-```bash
-docker compose --env-file .env -f infra/docker-compose.yml up -d
-docker compose --env-file .env -f infra/docker-compose.yml exec -T backend alembic upgrade head
-python scripts/seed.py && python scripts/load_eval_tickets.py
-python scripts/eval_baseline.py           # add --limit N to sample
-```
+Two tables. **Phase 5 eval batches** below is the one that counts from now on:
+a recorded batch with per-field accuracy, hit@k, grounded-rate and judge
+scores, produced by `POST /api/eval/run` and stored in `eval_batches`. The
+older Phase 2 table is kept underneath because deleting the row where the gate
+failed would erase the only evidence the gate can fail.
 
 A prompt or model change without a fresh row here is a convention violation
 (checked at PR review) — `AGENT_VERSION` in `backend/app/agents/prompts.py`
 bumps whenever prompt text changes.
 
-## Results
+## Phase 5 eval batches
+
+Every row is one `eval_batches` record. Metric keys are identical across rows by
+construction (G5.5), so any two versions can be read side by side.
+
+| Date | agent_version | Models (triage → judge) | Tickets | Category | Urgency | Team | Overall | Grounded | hit@k | Judge resolution | Judge citation | Failed |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 2026-08-16 | triage-v1 | `fake` harness check (3 tickets) | 3 | 0.0% | 33.3% | 33.3% | 0.0% | 100% | 0.0% | 3.33 | 3.33 | 0 |
+| 2026-08-16 | triage-v1 | `ollama` `llama3.1:8b` → `qwen2.5:7b` | 20 | 80.0% | 75.0% | 70.0% | 50.0% | 95.0% | 80.0% | 3.68 | 4.79 | 1 |
+| 2026-08-16 | triage-v1 | `ollama` `llama3.1:8b` → `qwen2.5:7b` | 20 | 80.0% | 75.0% | 70.0% | 50.0% | 95.0% | 80.0% | 3.68 | 4.79 | 1 |
+| 2026-08-16 | triage-v1 | `ollama` `llama3.1:8b` → `qwen2.5:7b` | 20 | 80.0% | 75.0% | 70.0% | 50.0% | 95.0% | 80.0% | 3.68 | 4.79 | 1 |
+
+**Overall** is the share of tickets where *all three* labelled fields are right,
+which is why it sits far below any single field. `suggested_priority` is not
+scored: the fixture carries no priority label (D19 decision 5).
+
+The fake row is a harness check and **must never be quoted as model quality** —
+the fake provider classifies by hashing token content, not by meaning (D16
+decision 3), so its accuracy is noise by construction. It is here because it
+proves the batch machinery end to end, and because the contrast is the point.
+
+### The three Ollama rows are identical, and that is the finding
+
+Three independent batches, each with its own twenty runs: every per-field score,
+every hit@k, every judge score and **every generated `recommended_resolution`
+string** matched exactly (verified by SQL `EXCEPT` between batches — zero rows).
+At temperature 0, with a fixed corpus and anchored rubrics, this pipeline is
+reproducible run to run on this machine.
+
+That is worth recording because it sets the noise floor: at a fixed
+`agent_version`, the run-to-run delta here is **zero**, so any future movement
+in these numbers is signal rather than variance. It is not a claim that the
+models are deterministic in general — different hardware, a re-pulled model tag,
+or a re-ingested corpus can all move it, and a row that changes without a code
+change means one of those changed.
+
+### Every row is `triage-v1`, and that is a real gap (open)
+
+Codex's Phase 5 adversarial pass flagged this as finding 8, and it is correct:
+G5.5 asks for two batches at **different** `agent_version`s, and this table has
+one version repeated. The mechanism is proven — metric keys are identical by
+construction, and the G5.5 gate renders two versions side by side — but the
+committed artifact demonstrates repeatability, not comparability.
+
+It stays that way on purpose. Phase 5 built the harness that measures prompts;
+it did not change one, so `AGENT_VERSION` never moved. The honest fix is a real
+prompt change with a batch either side of it, which is Phase 6/7 work. The
+dishonest fix is to relabel one of these three identical runs `triage-v2`, and
+that would put a fabricated comparison in the one document whose entire value
+is that its numbers were not fitted to anything. Tracked as an open item in
+DECISIONS.md rather than closed by a label.
+
+### G5.2 canary (real judge, 2026-08-16)
+
+The judge must rank a deliberately-wrong resolution below a correct one, which
+needs actual semantics — so the canary is opt-in and refuses a fake stack (D19
+decision 3). Measured:
+
+```
+PHASE5_RUN_CANARY=1 LLM_PROVIDER=ollama TRIAGE_MODEL=llama3.1:8b JUDGE_MODEL=qwen2.5:7b \
+  pytest tests/phase5/test_judge_sanity_gate.py -k canary -s
+# canary: qwen2.5:7b scored correct=5 wrong=2 (citation support 5/3)
+```
+
+A resolution about replacing a door badge scored 2 against 5 for the documented
+recovery steps, and its citation support 3 against 5 — the judge noticed that
+the cited passage does not say what the answer claimed. **PASS.**
+
+### What the agent got wrong (batch `3cc5a149`)
+
+| Ticket | Miss |
+|---|---|
+| EVAL-011 | **Failed `ungrounded`** — returned no usable citation, so it scores zero on every field. The only failed run. |
+| EVAL-012, EVAL-019 | `general_inquiry` → `hardware`. **The same two tickets missed identically in Phase 2**, across a different provider configuration. |
+| EVAL-015 | `hardware` → `email_collaboration`; team follows the category into Business Applications. |
+| EVAL-003, EVAL-004, EVAL-014 | Team `IT Security` → `Service Desk`. Three of the six team misses are this one pattern, all on account-access tickets. |
+| EVAL-005, EVAL-017, EVAL-018 | Urgency off by one band in both directions. |
+| EVAL-002, EVAL-018, EVAL-019 | hit@k miss: retrieval never surfaced the document the label is grounded in. |
+
+**Two of these are label questions, not model questions**, and they are the same
+ones G1.5 has been flagging: EVAL-012/EVAL-019 have now been categorised
+`hardware` by three independent runs, and the `IT Security` team label on
+account-access tickets loses three times in a row. An answer key nobody has
+signed off is being used to grade an agent; where the agent disagrees
+*consistently*, the label is at least as likely to be wrong as the model.
+**G1.5 remains open and is the first thing to fix before these numbers carry
+weight.**
+
+### Reproducing a batch
+
+```bash
+# Real models. The judge must differ from the triage model or the stack refuses
+# to start (D5); pull both.
+ollama pull llama3.1:8b && ollama pull qwen2.5:7b && ollama pull nomic-embed-text
+
+# .env's OLLAMA_BASE_URL is localhost, which points a *container* at itself.
+LLM_PROVIDER=ollama OLLAMA_BASE_URL=http://host.docker.internal:11434 \
+  TRIAGE_MODEL=llama3.1:8b JUDGE_MODEL=qwen2.5:7b EMBEDDING_MODEL=nomic-embed-text \
+  docker compose --env-file .env -f infra/docker-compose.yml up -d --build backend worker
+docker compose -f infra/docker-compose.yml exec -T backend alembic upgrade head
+
+# Switching provider switches EMBEDDINGS too, so the corpus must be re-ingested:
+# chunks embedded by the fake provider are a different vector space entirely.
+python scripts/seed.py
+python scripts/reset_corpus.py          # 10 MD-IT documents -> 56 chunks
+python scripts/load_eval_tickets.py     # 20 labelled tickets, labels withheld
+
+ADMIN="Authorization: Bearer $(python scripts/dev_token.py --email admin@demo)"
+BATCH=$(curl -sX POST localhost:8000/api/eval/run -H "$ADMIN" | jq -r .id)
+curl -s "localhost:8000/api/eval/batches/$BATCH" -H "$ADMIN" | jq .summary
+```
+
+About ten minutes for the runs (20 tickets, worker concurrency 4) plus a minute
+of judging on an M-series laptop. The batch runs as background jobs and the
+scorer re-checks until they settle, so the HTTP call returns immediately.
+
+## Phase 2 results (superseded by the table above)
 
 | Date | agent_version | Provider / model | Runs | Category | Urgency | Team | G2.4 |
 |---|---|---|---|---|---|---|---|

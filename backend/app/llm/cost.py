@@ -5,11 +5,23 @@ start; Phase 5 formalizes the pricing table and aggregates it into metrics.
 Local models cost nothing — that is the point of the local-first build (D11).
 """
 
-# USD per 1M tokens (input, output). Unknown models fall back to free so a
-# missing entry never inflates a cost figure — Phase 5 adds the real table.
+# USD per 1M tokens (input, output), as published 2026-08-16.
+#
+# Versioned in code rather than config (D19 decision 7). An unset config table
+# silently reports $0, and the cost figure is the one most likely to be quoted
+# out loud in a demo — so it should be the one most visible in review. A stale
+# price here shows up in a diff; a stale price in an env var shows up nowhere.
+#
+# Unknown models fall back to free, which keeps a missing entry from inflating
+# a figure. That cuts the other way too: a new model priced at zero under-
+# reports until it is added here. Every cost in this system is labelled an
+# estimate for exactly that reason.
+PRICING_AS_OF = "2026-08-16"
 PRICING: dict[str, tuple[float, float]] = {
     "gpt-4o-mini": (0.15, 0.60),
     "gpt-4o": (2.50, 10.00),
+    "gpt-4.1-mini": (0.40, 1.60),
+    "gpt-4.1": (2.00, 8.00),
 }
 
 

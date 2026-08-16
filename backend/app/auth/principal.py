@@ -21,6 +21,7 @@ from sqlalchemy.orm import selectinload
 
 from app.auth.provider import InvalidToken, bearer_token, get_auth_provider
 from app.db import get_session
+from app.logging_config import bind_org
 from app.models import Role, User
 
 # A 401 must say how to authenticate, per RFC 6750, and must not say why
@@ -88,6 +89,10 @@ async def current_principal(
             raise HTTPException(status_code=403, detail="no FlowForge account for this identity")
         user = await _link_first_login(session, claims.subject, email)
 
+    # Every line this request logs from here on carries the tenant. Bound at
+    # the one point where the org is known and trusted — deriving it anywhere
+    # later would mean reading it off a request, which rule 1 above forbids.
+    bind_org(str(user.org_id))
     return Principal(
         user_id=user.id,
         org_id=user.org_id,

@@ -454,17 +454,26 @@ def _check_dimensions(embeddings: list[list[float]]) -> None:
             )
 
 
-def get_provider(settings: Settings | None = None) -> LLMProvider:
+def get_provider(settings: Settings | None = None, chat_model: str | None = None) -> LLMProvider:
+    """The one place that decides which provider is active.
+
+    `chat_model` overrides the triage model for callers that need a *different*
+    model on the same provider — the eval judge (D5/D19.1). It stays a
+    parameter here rather than a second factory because this module is the only
+    one allowed to know a provider exists, and a `get_judge_provider` living
+    elsewhere would be a second such place.
+    """
     settings = settings or get_settings()
+    model = chat_model or settings.triage_model
     if settings.llm_provider == "openai":
         api_key = (settings.openai_api_key or "").strip()
         if not api_key:
             raise ValueError(
                 "LLM_PROVIDER=openai requires OPENAI_API_KEY to be set to a non-blank value."
             )
-        return OpenAIProvider(api_key, settings.embedding_model, settings.triage_model)
+        return OpenAIProvider(api_key, settings.embedding_model, model)
     if settings.llm_provider == "fake":
         if settings.app_env == "prod":
             raise ValueError("LLM_PROVIDER=fake is for dev/CI only, never prod.")
         return FakeProvider(settings.embedding_model, settings.fake_llm_mode)
-    return OllamaProvider(settings.ollama_base_url, settings.embedding_model, settings.triage_model)
+    return OllamaProvider(settings.ollama_base_url, settings.embedding_model, model)

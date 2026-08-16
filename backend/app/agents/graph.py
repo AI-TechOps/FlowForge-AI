@@ -291,15 +291,35 @@ def _after_approval(state: TriageState) -> str:
     return "rejected" if state.get("rejected") else "execute"
 
 
-def build_graph(checkpointer: Any | None = None) -> Any:
+def build_graph(checkpointer: Any | None = None, eval_mode: bool = False) -> Any:
+    """Compile the triage graph.
+
+    `eval_mode=True` returns a graph that **does not contain** the approval or
+    execute nodes at all: it ends at `propose`, and the proposal is scored as
+    it stands (spec 06 §2, D19 decision 2).
+
+    Removing the nodes rather than skipping them at runtime is the whole point.
+    A boolean checked inside `await_approval` would work, and would make the
+    human-in-the-loop — the central architectural feature of this project —
+    depend on that boolean being false. A flag that can be set can be set
+    wrongly, on a real run, by a future caller who has forgotten why it exists.
+    Here the interrupt cannot be skipped by a normal run because the eval graph
+    is a different object, and it cannot write because it has no `execute` node
+    to reach. Same reasoning as G3.2, where the rejected→execute edge was
+    deleted rather than guarded.
+
+    Without eval mode a 20-ticket batch would strand 20 runs in
+    `awaiting_approval`, waiting for a human who has nothing to decide.
+    """
     graph = StateGraph(TriageState)
     graph.add_node("load_ticket", load_ticket)
     graph.add_node("retrieve_evidence", retrieve_evidence)
     graph.add_node("classify", classify)
     graph.add_node("ground_check", ground_check)
     graph.add_node("propose", propose)
-    graph.add_node("await_approval", await_approval)
-    graph.add_node("execute", execute)
+    if not eval_mode:
+        graph.add_node("await_approval", await_approval)
+        graph.add_node("execute", execute)
 
     graph.set_entry_point("load_ticket")
     graph.add_edge("load_ticket", "retrieve_evidence")
@@ -310,6 +330,14 @@ def build_graph(checkpointer: Any | None = None) -> Any:
     graph.add_conditional_edges(
         "ground_check", _after_ground_check, {"propose": "propose", "failed": END}
     )
+
+    if eval_mode:
+        # The graph ends here. Grounding still applies: an ungrounded eval run
+        # fails exactly as a real one does, and is scored as a failure rather
+        # than quietly excused because it was "only" an eval.
+        graph.add_edge("propose", END)
+        return graph.compile(checkpointer=checkpointer)
+
     graph.add_edge("propose", "await_approval")
     # Reject terminates without ever reaching `execute`: there is no edge from
     # the rejected branch to a write, which is what makes G3.2 structural

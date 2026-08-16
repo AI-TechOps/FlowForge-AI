@@ -15,6 +15,7 @@ remembers.
 """
 
 import uuid
+from datetime import timedelta
 
 from arq import create_pool
 from arq.connections import ArqRedis, RedisSettings
@@ -78,6 +79,31 @@ async def enqueue_run(
         str(org_id),
         _actor(actor_user_id),
         _job_id=run_job_id("execute", run_id, started_at),
+    )
+
+
+async def enqueue_eval_batch(
+    batch_id: uuid.UUID,
+    org_id: uuid.UUID,
+    attempt: int = 0,
+    defer_seconds: int = 0,
+) -> None:
+    """Score an eval batch once its runs settle (spec 06 §2).
+
+    Keyed by batch id *and attempt*: a duplicate delivery of one attempt
+    collapses into a single scorer, while the scorer re-checking later is a new
+    job rather than a duplicate arq refuses to enqueue. The scorer re-enqueues
+    itself instead of sleeping, so no job outlives `job_timeout` waiting for a
+    twenty-run batch to finish.
+    """
+    queue = await get_queue()
+    await queue.enqueue_job(
+        "score_batch",
+        str(batch_id),
+        str(org_id),
+        attempt,
+        _job_id=f"eval:{batch_id}:{attempt}",
+        _defer_by=timedelta(seconds=defer_seconds) if defer_seconds else None,
     )
 
 

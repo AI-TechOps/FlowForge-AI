@@ -12,6 +12,7 @@ from app.agents.write_tools import WRITE_TOOLS
 from app.auth.principal import APPROVAL_READERS, APPROVER_ONLY, Principal
 from app.db import get_session
 from app.ingestion.queue import enqueue_resume
+from app.logging_config import bind_run
 from app.models import Approval, ApprovalStatus, Decision, Run, Ticket
 from app.tenancy import get_scoped
 
@@ -147,6 +148,11 @@ async def decide(
     approval = await get_scoped(session, Approval, approval_id, org_id)
     if approval is None:
         raise HTTPException(status_code=404, detail="approval not found")
+
+    # A decision is the one API call that hands work back to the worker, so it
+    # is the seam where correlation matters most: the human's decision and the
+    # writes it authorised share a run_id across both log streams.
+    bind_run(str(approval.run_id))
 
     # Loaded unconditionally so the resume job can be keyed the same way
     # recovery keys it (see queue.run_job_id); otherwise the API's job and a

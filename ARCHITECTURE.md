@@ -22,7 +22,8 @@ Four views: (1) system architecture, (2) end-to-end triage workflow, (3) RAG ing
  │  │ FastAPI backend                                       │  │
  │  │  - auth middleware (OAuth2 → session/JWT)             │  │
  │  │  - tenant filter (org_id on every query)              │  │
- │  │  - routers: docs, tickets, runs, approvals, metrics   │  │
+ │  │  - routers: docs, tickets, runs, approvals,           │  │
+ │  │    eval, metrics, audit, config                       │  │
  │  └──────┬──────────────────────────┬────────────────────┘  │
  │         │                          │                        │
  │  ┌──────▼──────────┐      ┌────────▼─────────┐             │
@@ -157,12 +158,20 @@ Ingestion runs as a **background job** (Redis queue) — uploads return immediat
 | documents | id, org_id, title, version, status, file_ref, error_message | uploaded knowledge |
 | chunks | id, org_id, document_id, chunk_index, text, embedding vector, embedding_model, page, section, token_count | RAG units; org_id denormalized for direct tenant filtering |
 | tickets | id, org_id, title, description, department, service, priority, assigned_team, internal_notes jsonb, status, external_ref, is_eval_seed, created_by | the issues. `department` is the REQUESTER's org unit; `assigned_team` is the write target of `assign_ticket` — different concepts |
-| runs | id, org_id, ticket_id, status, agent_version, confidence, output jsonb, checkpoint ref | one triage execution |
+| runs | id, org_id, ticket_id, status, agent_version, confidence, output jsonb, evidence jsonb, failure_reason, attempts, triggered_by, eval_batch_id, checkpoint ref | one triage execution. `attempts` survives Redis losing the job, which is what lets a poisoned run dead-letter; `eval_batch_id` is the *only* thing that selects the eval graph, and because that graph has no execute node a run marked eval by mistake stops at a proposal rather than writing unapproved (D19 decision 2) |
 | approvals | id, org_id, run_id, status, approver_user_id, decision, original_proposal jsonb, final_values jsonb, feedback, risk_class, decided_at, created_at | human decisions. `status` (pending/decided) is separate from `decision` so the one-shot rule is a single compare-and-swap |
 | tool_executions | id, org_id, run_id, tool, args_hash, args jsonb, result jsonb, confirmed | idempotency ledger; UNIQUE (run_id, tool, args_hash) is the at-most-once guarantee for write tools |
 | audit_log | id, org_id, run_id, actor, tool, payload jsonb, result, latency_ms, tokens, cost, created_at | immutable trail |
-| eval_results | id, org_id, run_id, ticket_id, expected jsonb, actual jsonb, scores jsonb, judge_model, eval_batch_id | scoring vs labeled set |
-| eval_batches | id, org_id, agent_version, started_at, finished_at, summary jsonb | one eval run over the seed set |
+| eval_results | id, org_id, batch_id, run_id, ticket_id, seed_ref, expected jsonb, actual jsonb, scores jsonb, judge_model, failure_reason | scoring vs labeled set. UNIQUE (batch_id, ticket_id): re-scoring updates in place, which is what makes "the same batch re-scored gives identical accuracy" a claim about determinism rather than about row counts (G5.1) |
+| eval_batches | id, org_id, agent_version, llm_provider, triage_model, judge_model, status, total_tickets, started_at, finished_at, summary jsonb | one eval run over the seed set. The summary is computed once at finalize and never recomputed on read, so a recorded batch stays a fixed historical fact even after the scoring code changes (G5.5). `llm_provider` is recorded because the fake provider runs under the configured `TRIAGE_MODEL` name — without it a harness batch and a real one are indistinguishable in the regression table |
+
+`runs.eval_batch_id` marks a run as part of a batch and is the **only** thing
+that selects the eval graph. Deliberately one column rather than a separate
+`is_eval` boolean: two markers can disagree, and the asymmetry makes a single
+marker safe — a run wrongly marked eval degrades to "proposes and stops", never
+to "writes without approval", because the eval graph has no execute node. The
+same column also gates the shared finalizer's `new → triaged` ticket write, so
+"eval writes nothing back" holds in lifecycle code as well as in topology.
 
 Ticket status lifecycle: `new → triaged → actioned` (plus `closed`).
 
@@ -180,7 +189,8 @@ checkpoint whenever the human decides. LangGraph owns its own checkpoint tables 
 - **Tenant isolation:** `org_id` filter enforced at the query layer on every tenant table. RLS is the production hardening path.
 - **Structured output:** every LLM decision validated against a Pydantic schema; raw model text is never trusted for routing.
 - **Write-tool contract:** org context, user context, typed args, permission check, idempotency key, timeout, audit record, retry policy, mock implementation, post-execution confirmation.
-- **Observability:** every run and every tool call logged (inputs, outputs, latency, tokens, cost).
+- **Observability:** every run and every tool call logged (inputs, outputs, latency, tokens, cost). Model calls too, the judge included — the eval spends tokens like anything else, and a cost figure that quietly omits a fifth of the calls is worse than none. Logs are JSON with `run_id`/`org_id` on every line in both the API and the worker, so one run's whole life is a single query across two containers.
+- **Measurement:** the deterministic scorer (`app/eval/scoring.py`) is pure functions only — no clock, no database, no model. That is what makes a recorded batch re-scorable to the same numbers, and therefore what makes two `agent_version`s comparable (G5.1, G5.5). Judgement lives in `app/eval/judge.py` on a *different model family* from triage (D5); config validation refuses a judge in the **same family** as triage, comparing the model name minus its `:tag` and provider prefix — exact-name comparison let `llama3.1:8b` be judged by `llama3.1:70b`, which is the same weights lineage and therefore the same blind spots (D20 finding 5).
 - **Provider abstraction:** only `backend/app/llm/provider.py` knows which LLM/embedding provider is active, and only `backend/app/auth/provider.py` knows which identity provider is (D18 decision 1). In both cases the *verification/validation* path is shared across providers; only the source of the key or the completion differs.
 - **Authentication:** every `/api` route except `/api/health` requires a bearer token. `org_id` is derived from the authenticated principal — no header, query parameter, or body field can influence it (G4.5).
 - **Authorization:** roles come from `user_roles`, never from token claims, so a revoked role takes effect on the next request. The role matrix is expressed once as named dependencies in `backend/app/auth/principal.py`.
@@ -197,8 +207,10 @@ incident.
 |---|---|---|
 | Vector search | Exact sequential scan over the org's chunks | HNSW index (below) |
 | Tenant isolation | Application-level `org_id` filtering | Postgres RLS (D7, spec 05 §3) |
+| Tenant-consistent foreign keys | Child rows carry `org_id` and are filtered on it; the FK alone does not enforce the pair | Composite FKs (e.g. `eval_results → eval_batches(id, org_id)`) so a cross-tenant parent/child pair cannot be written at all. Lands with RLS — worth doing across every tenant table at once, not one table at a time (D20 finding 1) |
 | Audit payloads | Credential-bearing *keys* redacted | Value-level scanning of user-supplied text (spec 03 §1) |
-| Eval judge | Same provider family as triage | A genuinely different model (D5) |
+| hit@k document identity | Matched on normalised title (`MD-IT-001` ↔ "MD IT 001 vpn access policy") | A `documents.external_ref` column; retitling a document silently drops hit@k today |
+| Eval answer key | A JSON file mounted read-only into the containers | Unchanged by design — keeping the labels out of Postgres is what stops the agent reading them |
 | Token storage (SPA) | `sessionStorage`, cleared on 401 | httpOnly cookie + backend session, which XSS cannot read |
 | Dead-lettered runs | Terminal, visible on the run detail page | An operator-facing requeue action |
 

@@ -14,6 +14,12 @@ dependencies = [
     "pgvector>=0.3",
     "httpx>=0.28",
     "arq>=0.26",
+    # arq pulls redis[hiredis]; hiredis 3.4.1's arm64 wheel SIGILLs on import,
+    # which takes the backend and worker down with exit 132 and no log line at
+    # all. Same failure mode as the redis/pyjwt wheels noted below, measured on
+    # an Apple Silicon dev machine: 2.3.2 through 3.4.0 import fine, 3.4.1 does
+    # not. Excluded rather than capped so a fixed 3.4.2 is picked up.
+    "hiredis>=3.1,!=3.4.1,<4",
     "python-multipart>=0.0.18",
     "pypdf>=5.1",
     # Upper bounds because unpinned ranges have already bitten: a newer
@@ -29,6 +35,12 @@ dependencies = [
     # JWT verification (Phase 4). The [crypto] extra pulls in `cryptography`,
     # which the local dev issuer also uses to generate its keypair.
     "pyjwt[crypto]>=2.10,<3",
+    # Capped for the same reason as the wheels above: cryptography 47+ ships an
+    # arm64 `_rust` extension that SIGILLs on import on an Apple Silicon dev
+    # machine, taking down backend and worker with exit 132 and no log line.
+    # Measured: 43.0.3-46.0.4 import fine, 47.0.0 and later do not. The crash
+    # reaches everything, because redis, pyjwt and pypdf all import it.
+    "cryptography>=43,<47",
 ]
 
 [project.optional-dependencies]

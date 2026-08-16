@@ -88,7 +88,10 @@ jobs:
         run: pytest --tb=short
 
   integration:
-    name: phase1-and-phase2-gates
+    # Named for what it runs, which is now every live gate G1.1-G5.5 plus the
+    # adversarial probes — not the two phases it started life covering. A stale
+    # job name is a check nobody reads correctly when it goes red.
+    name: live-gates-and-adversarial
     runs-on: ubuntu-latest
     # G1.1–G1.4 and G2.1–G2.6 are HTTP integration gates: they need the full
     # stack (db+pgvector, redis, backend, worker), and G1.4 kills/restarts the
@@ -204,6 +207,26 @@ jobs:
           DATABASE_URL: postgresql+asyncpg://flowforge:flowforge@localhost:5432/flowforge
           REDIS_URL: redis://localhost:6379/0
         run: pytest tests/phase4 -v --tb=short
+
+      # G5.1-G5.5. The pure halves (scoring determinism, judge schema, config
+      # validation, eval-graph shape) already ran in the fast job; here they
+      # run again alongside the live halves that need the worker -- metric
+      # truth against a hand-computed dataset, batch coverage, comparability.
+      #
+      # G5.2's canary pair stays skipped: it needs a real judge model, and this
+      # stack is the fake provider, which is semantically blind (D19 decision
+      # 3). It is measured against Ollama and recorded in eval/baseline.md.
+      - name: Run Phase 5 gates (G5.1-G5.5)
+        env:
+          PHASE5_REQUIRE_LIVE: "1"
+          PHASE5_DATABASE_URL: postgresql+asyncpg://flowforge:flowforge@localhost:5432/flowforge
+          PHASE5_BASE_URL: http://localhost:8000
+          # A fake-provider batch is seconds of work, but the batch also waits
+          # for its runs to settle; keep the ceiling well above that.
+          PHASE5_BATCH_TIMEOUT_SECONDS: "300"
+          DATABASE_URL: postgresql+asyncpg://flowforge:flowforge@localhost:5432/flowforge
+          REDIS_URL: redis://localhost:6379/0
+        run: pytest tests/phase5 -v --tb=short
 
       # Codex's adversarial probes. Several drive the live stack (credential
       # handling, cross-tenant run detail, rollback behaviour), so they belong

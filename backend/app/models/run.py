@@ -73,6 +73,13 @@ class Run(TenantBase, TimestampMixin, Base):
     triggered_by: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL")
     )
+    # Set only by the eval batch endpoint. Selects the eval graph, which has no
+    # approval node and — crucially — no execute node, so a run marked eval by
+    # mistake degrades to "produces a proposal and stops", never to "writes
+    # without approval". That asymmetry is what makes a single marker safe.
+    eval_batch_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("eval_batches.id", ondelete="SET NULL"), index=True
+    )
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 

@@ -23,6 +23,7 @@ from app.agents.tools import ToolContext
 from app.config import get_settings
 from app.db import async_session_factory
 from app.ingestion.queue import enqueue_resume, enqueue_run
+from app.logging_config import bind_run
 from app.models import (
     Approval,
     ApprovalStatus,
@@ -56,6 +57,11 @@ async def execute_run(
     # transaction — including the one this job is about to hold open for its
     # whole life. Normally a no-op; the worker did this at startup.
     await ensure_schema()
+
+    # Every line emitted below carries this run id, here and in the API alike.
+    # Correlating the two streams is the whole point: "what happened to run X?"
+    # should be one query, not a timestamp-matching exercise across containers.
+    bind_run(run_id, org_id)
 
     async with async_session_factory() as session:
         run = await get_scoped(session, Run, run_uuid, org_uuid)
@@ -111,9 +117,14 @@ async def execute_run(
             return await _dead_letter(session, run)
 
         context = ToolContext(session=session, org_id=org_uuid, run_id=run_uuid, actor="agent")
+        # An eval run uses the graph with no approval node and no execute node
+        # (D19 decision 2). Selected from the run row, not from the job
+        # payload: a payload can be forged or replayed, a column cannot be set
+        # by whoever enqueued the job.
+        is_eval = run.eval_batch_id is not None
         try:
             async with checkpointer() as saver:
-                graph = build_graph(saver)
+                graph = build_graph(saver, eval_mode=is_eval)
                 state = await asyncio.wait_for(
                     graph.ainvoke(
                         {"ticket_id": str(run.ticket_id)},
@@ -155,6 +166,7 @@ async def resume_run(
     settings = get_settings()
 
     await ensure_schema()
+    bind_run(run_id, org_id)
 
     async with async_session_factory() as session:
         run = await get_scoped(session, Run, run_uuid, org_uuid)
@@ -485,9 +497,21 @@ async def _finalize(session: Any, run: Run, state: dict[str, Any]) -> str:
     run.confidence = state.get("confidence")
     run.finished_at = datetime.now(UTC)
 
-    ticket = await get_scoped(session, Ticket, run.ticket_id, run.org_id)
-    if ticket is not None and ticket.status == TicketStatus.new:
-        ticket.status = TicketStatus.triaged
+    # An eval run reads its seed ticket and writes nothing back to it. D19
+    # decision 2 buys that property by compiling a graph with no approval and
+    # no execute node, but graph topology only covers what the graph does —
+    # this finalizer is shared with real runs and was moving every eval seed
+    # from `new` to `triaged` (Codex Phase 5 finding 4).
+    #
+    # It matters beyond tidiness: the seed set is the fixed input a regression
+    # table is measured against, and a batch that mutates its own subjects
+    # means batch two runs against different tickets than batch one. The
+    # "no writes" property has to hold in the shared lifecycle code too, not
+    # only in the topology.
+    if run.eval_batch_id is None:
+        ticket = await get_scoped(session, Ticket, run.ticket_id, run.org_id)
+        if ticket is not None and ticket.status == TicketStatus.new:
+            ticket.status = TicketStatus.triaged
 
     await session.commit()
     return RunStatus.completed.value

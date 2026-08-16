@@ -97,8 +97,8 @@ async def start_eval_batch(
     session.add(batch)
     await session.flush()
 
-    for ticket in scoreable:
-        run = Run(
+    runs = [
+        Run(
             org_id=org_id,
             ticket_id=ticket.id,
             status=RunStatus.queued,
@@ -109,11 +109,26 @@ async def start_eval_batch(
             # a run which cannot pause for approval.
             eval_batch_id=batch.id,
         )
-        session.add(run)
-        await session.flush()
-        await enqueue_run(run.id, org_id, principal.user_id)
+        for ticket in scoreable
+    ]
+    session.add_all(runs)
 
+    # Commit before publishing anything. A flush is invisible to the worker's
+    # own connection, so a job published mid-transaction can be picked up
+    # against a row that does not exist yet: `execute_run` finds nothing,
+    # returns "missing", and arq stores that result under the deterministic job
+    # id. The reconciler then re-enqueues under the *same* id — `started_at` is
+    # still null on a run that was never claimed — and arq drops it as a
+    # duplicate, so the run stays queued until the result expires (Codex Phase
+    # 5 finding 2).
+    #
+    # This restores the ordering every other producer already uses: documents.py
+    # and runs.py both commit and then enqueue. This endpoint was the only one
+    # that had drifted.
     await session.commit()
+
+    for run in runs:
+        await enqueue_run(run.id, org_id, principal.user_id)
     # Enqueued after the runs so the scorer never starts before its subjects
     # exist; it polls for settlement anyway, but starting it on an empty set
     # would burn its whole deadline waiting for rows that were still committing.

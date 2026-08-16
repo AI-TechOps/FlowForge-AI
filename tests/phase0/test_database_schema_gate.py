@@ -73,20 +73,27 @@ def test_migrated_schema_contains_only_the_expected_domain_tables(
         ORDER BY table_name;
         """,
     )
-    # Head is 0004. The list is the union of every approved spec's tables:
+    # Head is 0008. The list is the union of every approved spec's tables:
     # Phase 0 tenancy (organizations/users/user_roles), Phase 1 RAG
     # (documents/chunks, spec 02 task 1), Phase 2 triage (tickets/runs/
     # audit_log, spec 03 task 2), Phase 3 approval (approvals/tool_executions,
-    # spec 04 task 1).
+    # spec 04 task 1), Phase 5 evaluation (eval_batches/eval_results, spec 06
+    # §1, migration 0007).
     #
     # Deliberately an exact list, not a subset check: a table nobody approved
     # is exactly what this gate exists to catch, so each phase that adds one
     # has to say so here.
+    #
+    # LangGraph's checkpoint tables are absent on purpose — they are created by
+    # `saver.setup()` outside Alembic and only exist once a run has paused, so
+    # this gate runs against a freshly migrated database and never sees them.
     assert tables == [
         "approvals",
         "audit_log",
         "chunks",
         "documents",
+        "eval_batches",
+        "eval_results",
         "organizations",
         "runs",
         "tickets",

@@ -148,13 +148,17 @@ async def decide(
     if approval is None:
         raise HTTPException(status_code=404, detail="approval not found")
 
+    # Loaded unconditionally so the resume job can be keyed the same way
+    # recovery keys it (see queue.run_job_id); otherwise the API's job and a
+    # recovery job for the same resume would not collapse into one.
+    run = await get_scoped(session, Run, approval.run_id, org_id)
+    if run is None:
+        raise HTTPException(status_code=404, detail="approval not found")
+
     final_values = None
     if payload.decision == Decision.edited:
         if not payload.final_values:
             raise HTTPException(status_code=422, detail="edited decisions require final_values")
-        run = await get_scoped(session, Run, approval.run_id, org_id)
-        if run is None:
-            raise HTTPException(status_code=404, detail="approval not found")
         final_values = _validate_edits(
             payload.final_values,
             allowed_ticket_id=run.ticket_id,
@@ -202,7 +206,7 @@ async def decide(
 
     # Enqueued only after the decision is durably committed: a resume that ran
     # before the commit could read a still-pending approval and do nothing.
-    await enqueue_resume(approval.run_id, org_id, user_id)
+    await enqueue_resume(approval.run_id, org_id, user_id, started_at=run.started_at)
     await session.refresh(approval)
     return _approval_summary(approval)
 

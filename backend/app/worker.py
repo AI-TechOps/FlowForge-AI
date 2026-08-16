@@ -10,6 +10,7 @@ from typing import Any
 from arq import cron
 from arq.connections import RedisSettings
 
+from app.agents.checkpointer import ensure_schema
 from app.agents.runner import (
     execute_run,
     reconcile_runs,
@@ -21,7 +22,18 @@ from app.ingestion.pipeline import ingest_document
 
 
 async def startup(ctx: dict[str, Any]) -> None:
-    """Recover runs a previous worker died in the middle of."""
+    """Prepare the checkpoint schema, then recover runs a previous worker died in.
+
+    Schema first, and before any job can start: langgraph's setup ends in
+    CREATE INDEX CONCURRENTLY, which waits for every older transaction. Run
+    from inside a job — which holds one open for the whole run — it deadlocks
+    against the very run that triggered it.
+    """
+    try:
+        await ensure_schema()
+    except Exception:  # noqa: BLE001 - a cold stack has no tables yet either
+        logging.getLogger(__name__).warning("checkpoint schema setup deferred", exc_info=True)
+
     recovered = await recover_stranded_runs()
     if recovered:
         logging.getLogger(__name__).warning("re-enqueued %d stranded run(s)", recovered)

@@ -17,6 +17,7 @@ from app.ingestion.chunk import chunk_blocks
 from app.ingestion.extract import extract
 from app.llm.provider import get_provider
 from app.models import Chunk, Document, DocumentStatus
+from app.tenancy import get_scoped
 
 logger = logging.getLogger(__name__)
 
@@ -37,8 +38,8 @@ async def ingest_document(
     org_uuid = uuid.UUID(org_id)
 
     async with async_session_factory() as session:
-        document = await session.get(Document, doc_uuid)
-        if document is None or document.org_id != org_uuid:
+        document = await get_scoped(session, Document, doc_uuid, org_uuid)
+        if document is None:
             logger.warning("ingest skipped: document %s not found in org %s", document_id, org_id)
             return "missing"
 

@@ -7,9 +7,15 @@ own already failed twice — Codex found a run-scoped call recorder leaking
 across tenants in Phase 3, and an approval card following `run_id` into another
 organization in Phase 4.
 
-What it flags: `session.get(<TenantModel>, ...)` anywhere under `app/api/`
-outside `app/tenancy.py`. That is the shape that reads as safe — the id came
-from a scoped row, so surely it belongs to us — and is not.
+What it flags: any `.get(<TenantModel>, ...)` under `app/`, outside the helper
+itself. That is the shape that reads as safe — the id came from a scoped row,
+so surely it belongs to us — and is not.
+
+Workers were originally excluded on the grounds that they re-check the org from
+the job payload. They do, for the row the payload names; they did not for the
+rows that row points at. An org-A run naming an org-B ticket had that ticket
+moved from `new` to `actioned` by finalization, and the exclusion is exactly
+why the first version of this check did not see it.
 
 What it deliberately does not flag: `select(...)` statements. Those carry
 explicit `.where(Model.org_id == ...)` predicates that this would have to
@@ -29,8 +35,10 @@ import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-API_ROOT = REPO_ROOT / "backend" / "app" / "api"
-MODELS_ROOT = REPO_ROOT / "backend" / "app" / "models"
+APP_ROOT = REPO_ROOT / "backend" / "app"
+MODELS_ROOT = APP_ROOT / "models"
+# The helper itself is the one place allowed to load a tenant row by id.
+EXEMPT = {APP_ROOT / "tenancy.py"}
 
 
 def tenant_models() -> set[str]:
@@ -49,7 +57,9 @@ def tenant_models() -> set[str]:
 
 def violations(models: set[str]) -> list[str]:
     found: list[str] = []
-    for path in sorted(API_ROOT.rglob("*.py")):
+    for path in sorted(APP_ROOT.rglob("*.py")):
+        if path in EXEMPT:
+            continue
         tree = ast.parse(path.read_text(), filename=str(path))
         for node in ast.walk(tree):
             if not isinstance(node, ast.Call):
@@ -57,17 +67,17 @@ def violations(models: set[str]) -> list[str]:
             function = node.func
             if not (isinstance(function, ast.Attribute) and function.attr == "get"):
                 continue
-            if not (
-                isinstance(function.value, ast.Name) and function.value.id == "session"
-            ):
-                continue
+            # Any receiver: `session.get`, `self.session.get`,
+            # `context.session.get`. Keying on the name `session` missed the
+            # adapter's `self.session.get`, and a checker that only catches the
+            # spelling you thought of is not a control.
             if not node.args:
                 continue
             first = node.args[0]
             if isinstance(first, ast.Name) and first.id in models:
                 found.append(
                     f"{path.relative_to(REPO_ROOT)}:{node.lineno}: "
-                    f"session.get({first.id}, ...) is unscoped; "
+                    f".get({first.id}, ...) is unscoped; "
                     f"use app.tenancy.get_scoped(session, {first.id}, id, org_id)"
                 )
     return found
@@ -87,7 +97,8 @@ def main() -> int:
         return 1
 
     print(
-        f"tenant scoping check passed; {len(models)} tenant models, no unscoped API loads"
+        f"tenant scoping check passed; {len(models)} tenant models, "
+        "no unscoped loads anywhere under app/"
     )
     return 0
 

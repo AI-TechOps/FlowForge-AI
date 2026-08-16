@@ -20,7 +20,9 @@ from tests.phase4.conftest import (
 
 def _asyncpg_url(database_url: str) -> str:
     parsed = urlsplit(database_url)
-    return urlunsplit(("postgresql", parsed.netloc, parsed.path, parsed.query, parsed.fragment))
+    return urlunsplit(
+        ("postgresql", parsed.netloc, parsed.path, parsed.query, parsed.fragment)
+    )
 
 
 async def _insert_user(
@@ -481,11 +483,19 @@ def test_phase4_recovery_handles_running_jobs_and_dead_letter_boundary(
     retry_id, exhausted_id = asyncio.run(seed())
     enqueued: list[tuple[str, str]] = []
 
-    async def capture_run(run_id: object, queued_org_id: object) -> None:
+    # **kwargs so the double keeps matching the real enqueue signature, which
+    # now also carries the acting user and the job-dedup key. A stub narrower
+    # than the thing it replaces fails on the call, not on the assertion.
+    async def capture_run(
+        run_id: object, queued_org_id: object, *args: object, **kwargs: object
+    ) -> None:
+        del args, kwargs
         enqueued.append((str(run_id), str(queued_org_id)))
 
-    async def capture_resume(run_id: object, queued_org_id: object) -> None:
-        del run_id, queued_org_id
+    async def capture_resume(
+        run_id: object, queued_org_id: object, *args: object, **kwargs: object
+    ) -> None:
+        del run_id, queued_org_id, args, kwargs
 
     monkeypatch.setattr(runner, "enqueue_run", capture_run)
     monkeypatch.setattr(runner, "enqueue_resume", capture_resume)
@@ -495,7 +505,9 @@ def test_phase4_recovery_handles_running_jobs_and_dead_letter_boundary(
 
         try:
             await runner.recover_stranded_runs()
-            status, failure_reason, _ = await _run_state(phase4_database_url, exhausted_id)
+            status, failure_reason, _ = await _run_state(
+                phase4_database_url, exhausted_id
+            )
             return status, failure_reason
         finally:
             await engine.dispose()
@@ -632,9 +644,9 @@ def test_phase4_auth0_pkce_callback_is_bound_to_the_login_with_state(
 ) -> None:
     source = (repository_root / "frontend" / "src" / "auth.ts").read_text()
     assert "state:" in source, "the Auth0 authorize request sends no state nonce"
-    assert (
-        '.get("state")' in source or ".get('state')" in source
-    ), "the Auth0 callback never reads the returned state"
+    assert '.get("state")' in source or ".get('state')" in source, (
+        "the Auth0 callback never reads the returned state"
+    )
     assert "STATE_KEY" in source, "the expected state is not persisted and compared"
 
 

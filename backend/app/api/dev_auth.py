@@ -24,11 +24,15 @@ Auth0 token (D18 decision 1) — this shortcuts *issuance*, never validation.
 
 import uuid
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.provider import LocalDevProvider, get_auth_provider
 from app.config import get_settings
+from app.db import get_session
+from app.models import User
 
 router = APIRouter()
 
@@ -47,6 +51,11 @@ class DevTokenRequest(BaseModel):
     # first-login behaviour needs to choose whether a subject is one we have
     # seen before.
     subject: str | None = Field(default=None, max_length=255)
+    # Emails are unique per organization, not globally, so the same address can
+    # exist in two tenants. This selects *who is logging in* when that happens;
+    # it is not an org override — once authenticated the org comes from the user
+    # row and no request field can change it.
+    org_id: uuid.UUID | None = None
     expires_in_seconds: int | None = Field(default=None, ge=1, le=MAX_TTL_SECONDS)
 
 
@@ -67,16 +76,39 @@ def _guard() -> LocalDevProvider:
 
 
 @router.post("/api/dev/token", response_model=DevTokenResponse)
-async def issue_dev_token(payload: DevTokenRequest) -> DevTokenResponse:
+async def issue_dev_token(
+    payload: DevTokenRequest,
+    session: AsyncSession = Depends(get_session),
+) -> DevTokenResponse:
     provider = _guard()
     settings = get_settings()
 
     ttl = min(payload.expires_in_seconds or settings.dev_token_ttl_seconds, MAX_TTL_SECONDS)
-    # A caller-supplied subject is used as given so a token can be re-minted for
-    # an identity that already linked. Otherwise a fresh one, which exercises
-    # first-login provisioning rather than stepping around it.
-    subject = payload.subject or f"local|{uuid.uuid4()}"
+    subject = payload.subject or await _stable_subject(session, payload)
     return DevTokenResponse(
         access_token=provider.issue(subject, payload.email, ttl),
         expires_in=ttl,
     )
+
+
+async def _stable_subject(session: AsyncSession, payload: DevTokenRequest) -> str:
+    """The same subject every time, for an identity we already know.
+
+    A fresh random subject per call looked harmless and was not: first login
+    binds it to the user, and the *second* login arrives as a different unknown
+    subject for an address that is now claimed — which first-login provisioning
+    correctly refuses. Signing in twice as the same seeded user returned 403,
+    and no gate saw it because the suites mint one token per session and reuse
+    it. An end-to-end run as a human does not.
+
+    An unknown address still gets a random subject: that is a genuinely new
+    identity, and the 403 it earns from provisioning is the behaviour under
+    test, not a bug.
+    """
+    query = select(User).where(User.email == payload.email)
+    if payload.org_id is not None:
+        query = query.where(User.org_id == payload.org_id)
+    users = (await session.execute(query.limit(2))).scalars().all()
+    if len(users) != 1:
+        return f"local|{uuid.uuid4()}"
+    return users[0].auth_subject or f"local|{users[0].id}"

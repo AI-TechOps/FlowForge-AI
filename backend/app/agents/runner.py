@@ -16,7 +16,7 @@ from langgraph.types import Command
 from sqlalchemy import and_, or_, select, update
 
 from app.agents import audit
-from app.agents.checkpointer import checkpointer
+from app.agents.checkpointer import checkpointer, ensure_schema
 from app.agents.graph import build_graph
 from app.agents.prompts import AGENT_VERSION
 from app.agents.tools import ToolContext
@@ -33,6 +33,7 @@ from app.models import (
     Ticket,
     TicketStatus,
 )
+from app.tenancy import get_scoped
 
 logger = logging.getLogger(__name__)
 
@@ -50,9 +51,15 @@ async def execute_run(
     org_uuid = uuid.UUID(org_id)
     settings = get_settings()
 
+    # Before the session opens, never inside it. The checkpointer's schema
+    # setup ends in CREATE INDEX CONCURRENTLY, which waits for every older
+    # transaction — including the one this job is about to hold open for its
+    # whole life. Normally a no-op; the worker did this at startup.
+    await ensure_schema()
+
     async with async_session_factory() as session:
-        run = await session.get(Run, run_uuid)
-        if run is None or run.org_id != org_uuid:
+        run = await get_scoped(session, Run, run_uuid, org_uuid)
+        if run is None:
             logger.warning("run %s not found in org %s", run_id, org_id)
             return "missing"
 
@@ -63,18 +70,26 @@ async def execute_run(
         # terminality and creating a second approval on a run a human had
         # already finished with (Codex Phase 4 finding 2).
         #
-        # `queued` and `running` are both claimable: `running` is what a job
-        # that died mid-flight leaves behind, and recovery re-enqueues it. Any
-        # other status is terminal or owned by the resume path, and a job
-        # arriving for one of those is a no-op.
+        # `queued` is always claimable. `running` is claimable only once it has
+        # gone stale, because those are two different situations wearing the
+        # same status: a run a worker is actively driving right now, and one
+        # left behind by a worker that died. Accepting `running` outright let a
+        # duplicate delivery re-enter the graph *alongside* the live job
+        # (Codex Phase 4 residual finding 1); refusing it outright would strand
+        # every crashed run forever. The cutoff is what separates them, and it
+        # is the same cutoff recovery uses to decide a run needs re-enqueueing.
         #
         # Attempts increment inside the same UPDATE, so the count survives a
         # process that dies before writing anything else.
+        stale = datetime.now(UTC) - timedelta(seconds=settings.run_timeout_seconds)
         claimed = await session.execute(
             update(Run)
             .where(
                 Run.id == run_uuid,
-                Run.status.in_((RunStatus.queued, RunStatus.running)),
+                or_(
+                    Run.status == RunStatus.queued,
+                    and_(Run.status == RunStatus.running, Run.started_at < stale),
+                ),
             )
             .values(
                 status=RunStatus.running,
@@ -139,9 +154,11 @@ async def resume_run(
     org_uuid = uuid.UUID(org_id)
     settings = get_settings()
 
+    await ensure_schema()
+
     async with async_session_factory() as session:
-        run = await session.get(Run, run_uuid)
-        if run is None or run.org_id != org_uuid:
+        run = await get_scoped(session, Run, run_uuid, org_uuid)
+        if run is None:
             logger.warning("resume: run %s not found in org %s", run_id, org_id)
             return "missing"
 
@@ -152,14 +169,35 @@ async def resume_run(
             logger.warning("resume: run %s has no decided approval", run_id)
             return "missing"
 
-        # Terminal runs are never resumed: a duplicate resume job must be a
-        # no-op rather than a second pass at the write path.
-        if run.status not in (RunStatus.awaiting_approval, RunStatus.executing):
-            logger.info("resume: run %s already %s", run_id, run.status.value)
+        # Claim the resume, with the same stale-vs-active distinction the
+        # initial job makes. `awaiting_approval` is always claimable — that run
+        # is parked. `executing` means another resume is in flight, and only a
+        # stale one may be taken over; the previous check accepted any
+        # `executing` row, so a duplicate delivery could drive the write path
+        # concurrently with the live job (Codex Phase 4 residual finding 1).
+        #
+        # Idempotency (G3.3) makes a *replayed* write safe, not a *concurrent*
+        # one racing the ledger insert.
+        stale = datetime.now(UTC) - timedelta(seconds=settings.run_timeout_seconds)
+        claimed = await session.execute(
+            update(Run)
+            .where(
+                Run.id == run_uuid,
+                or_(
+                    Run.status == RunStatus.awaiting_approval,
+                    and_(Run.status == RunStatus.executing, Run.started_at < stale),
+                ),
+            )
+            .values(status=RunStatus.executing, started_at=datetime.now(UTC))
+            .execution_options(synchronize_session=False)
+        )
+        if claimed.rowcount == 0:
+            await session.rollback()
+            await session.refresh(run)
+            logger.info("resume: run %s already %s; ignoring", run_id, run.status.value)
             return run.status.value
-
-        run.status = RunStatus.executing
         await session.commit()
+        await session.refresh(run)
 
         resume_payload = {
             "decision": approval.decision.value,
@@ -254,7 +292,7 @@ async def recover_stranded_runs() -> int:
             )
             for run in stranded:
                 logger.warning("recovering run %s stranded in executing", run.id)
-                await enqueue_resume(run.id, run.org_id)
+                await enqueue_resume(run.id, run.org_id, started_at=run.started_at)
 
             # Decided-but-unresumed: the CAS committed, the enqueue did not.
             orphaned = (
@@ -273,7 +311,7 @@ async def recover_stranded_runs() -> int:
             )
             for run in orphaned:
                 logger.warning("recovering run %s: decided approval never resumed", run.id)
-                await enqueue_resume(run.id, run.org_id)
+                await enqueue_resume(run.id, run.org_id, started_at=run.started_at)
 
             # Never-started and crashed-mid-triage. `queued` means the job is
             # gone — Redis restarted, evicted it, or the enqueue failed.
@@ -318,7 +356,7 @@ async def recover_stranded_runs() -> int:
                     await _dead_letter(session, run)
                     continue
                 logger.warning("recovering run %s stranded in %s", run.id, run.status.value)
-                await enqueue_run(run.id, run.org_id)
+                await enqueue_run(run.id, run.org_id, started_at=run.started_at)
                 recovered += 1
 
             return len(stranded) + len(orphaned) + recovered
@@ -376,7 +414,11 @@ async def _finalize_decision(session: Any, run: Run, state: dict[str, Any]) -> s
     output["executed_actions"] = state.get("executed_actions", [])
     run.output = output
 
-    ticket = await session.get(Ticket, run.ticket_id)
+    # Scoped by the run's own org. A run row can name a ticket in another
+    # organization -- the foreign key covers ticket_id, not (org_id, ticket_id)
+    # -- and finalization was mutating it: org B's ticket went from new to
+    # actioned because org A's run completed (Codex Phase 4 residual finding 2).
+    ticket = await get_scoped(session, Ticket, run.ticket_id, run.org_id)
     if ticket is not None:
         ticket.status = TicketStatus.actioned
 
@@ -443,7 +485,7 @@ async def _finalize(session: Any, run: Run, state: dict[str, Any]) -> str:
     run.confidence = state.get("confidence")
     run.finished_at = datetime.now(UTC)
 
-    ticket = await session.get(Ticket, run.ticket_id)
+    ticket = await get_scoped(session, Ticket, run.ticket_id, run.org_id)
     if ticket is not None and ticket.status == TicketStatus.new:
         ticket.status = TicketStatus.triaged
 

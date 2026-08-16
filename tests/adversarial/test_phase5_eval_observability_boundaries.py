@@ -83,7 +83,9 @@ def test_phase5_operator_still_sees_average_tokens_per_run(
             await connection.close()
 
     asyncio.run(seed())
-    response = phase5_client.request("GET", "/api/metrics/summary", token=tenant.operator)
+    response = phase5_client.request(
+        "GET", "/api/metrics/summary", token=tenant.operator
+    )
     assert response.status == 200, detail(response)
     assert response.body.get("avg_tokens_per_run") == pytest.approx(30.0), (
         "spec 06 says every role sees average tokens/run; only cost and "
@@ -148,7 +150,9 @@ def test_phase5_batch_detail_does_not_follow_a_cross_tenant_result(
             await connection.close()
 
     asyncio.run(seed())
-    response = phase5_client.request("GET", f"/api/eval/batches/{batch_id}", token=owner.admin)
+    response = phase5_client.request(
+        "GET", f"/api/eval/batches/{batch_id}", token=owner.admin
+    )
     assert response.status == 200, detail(response)
     assert response.body["results"] == [], (
         "an org-A batch returned an org-B result, including its expected and "

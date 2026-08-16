@@ -12,6 +12,7 @@ from app.agents.prompts import AGENT_VERSION
 from app.auth.principal import ANY_PERSONA, OPERATOR_WORK, Principal
 from app.db import get_session
 from app.ingestion.queue import enqueue_run
+from app.logging_config import bind_run
 from app.models import AuditLog, FailureReason, Run, RunStatus, Ticket
 from app.tenancy import get_scoped
 
@@ -91,6 +92,10 @@ async def _start_run(
     session.add(run)
     await session.commit()
     await session.refresh(run)
+    # From here the API's lines carry the same run_id the worker will stamp on
+    # its own, so "what happened to run X?" is one query across two containers
+    # rather than a timestamp-matching exercise between them (spec 06 §3).
+    bind_run(str(run.id))
 
     # The durable row is committed before the job is enqueued, so a Redis
     # outage here used to strand the run in `queued` forever: no worker would
@@ -175,6 +180,7 @@ async def get_run(
     principal: Principal = ANY_PERSONA,
 ) -> dict[str, Any]:
     """Full run detail: status, structured output, evidence, and audit trail."""
+    bind_run(str(run_id))
     org_id = principal.org_id
     run = await get_scoped(session, Run, run_id, org_id)
     if run is None:

@@ -26,6 +26,7 @@ from app.agents.prompts import AGENT_VERSION
 from app.config import get_settings
 from app.eval.judge import judge_result
 from app.eval.scoring import is_grounded, retrieval_hit, score_fields, summarize
+from app.logging_config import bind_org, run_context
 from app.models import BatchStatus, EvalBatch, EvalResult, Run, RunStatus, Ticket
 
 logger = logging.getLogger(__name__)
@@ -157,6 +158,9 @@ async def finalize_batch(session: AsyncSession, batch: EvalBatch) -> dict[str, A
         summary.get("scored_tickets"),
         summary.get("total_tickets"),
         summary.get("accuracy_overall"),
+        # Carried as a field, not only inside the message, so the batch's lines
+        # are queryable the way run_id makes a run's lines queryable.
+        extra={"eval_batch_id": str(batch.id)},
     )
     return summary
 
@@ -204,6 +208,7 @@ async def score_batch(ctx: dict[str, Any], batch_id: str, org_id: str) -> str:
 
     batch_uuid = uuid.UUID(batch_id)
     org_uuid = uuid.UUID(org_id)
+    bind_org(org_id)
     settings = get_settings()
     deadline = datetime.now(UTC).timestamp() + settings.run_timeout_seconds + 60
 
@@ -239,7 +244,11 @@ async def score_batch(ctx: dict[str, Any], batch_id: str, org_id: str) -> str:
             label = labels.get(ticket.external_ref or "")
             if label is None:
                 continue
-            await score_run(session, batch, ticket, run, label)
+            # Scoped rather than bound: scoring walks many runs in one job, and
+            # the batch-level lines after this loop belong to the batch, not to
+            # whichever run happened to be scored last.
+            with run_context(str(run.id), org_id):
+                await score_run(session, batch, ticket, run, label)
         await session.commit()
 
         summary = await finalize_batch(session, batch)

@@ -84,6 +84,12 @@ async def start_eval_batch(
     # would burn its whole deadline waiting for rows that were still committing.
     await enqueue_eval_batch(batch.id, org_id)
     await session.refresh(batch)
+    logger.info(
+        "eval batch %s started over %s seed tickets",
+        batch.id,
+        len(scoreable),
+        extra={"eval_batch_id": str(batch.id)},
+    )
     return batch_payload(batch)
 
 

@@ -44,9 +44,26 @@ def bind_run(run_id: str | None, org_id: str | None = None) -> None:
     asyncio Task and a Task gets a *copy* of the context at creation. Setting
     here therefore cannot leak into a sibling job running concurrently, and the
     binding dies with the task. A module global would leak across all four of
-    the worker's concurrent slots.
+    the worker's concurrent slots. The same holds request-side: each request is
+    its own Task, so a handler binding a run cannot colour a concurrent one.
+
+    `org_id=None` leaves any existing org binding alone rather than clearing
+    it. In the API the org is known first (at authentication) and the run only
+    later, so overwriting here would blank the tenant off every line logged
+    after a run was bound.
     """
     _run_id.set(run_id)
+    if org_id is not None:
+        _org_id.set(org_id)
+
+
+def bind_org(org_id: str | None) -> None:
+    """Bind the tenant for this request or job.
+
+    Separate from `bind_run` because most API work has an org and no run —
+    a document upload, an approval list — and those lines are still worth being
+    able to filter by tenant.
+    """
     _org_id.set(org_id)
 
 

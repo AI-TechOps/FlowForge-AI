@@ -15,7 +15,8 @@ Four views: (1) system architecture, (2) end-to-end triage workflow, (3) RAG ing
  │                    FlowForge-AI platform                   │
  │                                                            │
  │  ┌──────────────────────────────────────────────────────┐  │
- │  │ React dashboard (10 role-based screens)              │  │
+ │  │ React SPA — 10 role-based screens + config panel      │  │
+ │  │ built by Vite, served by nginx, which proxies /api    │  │
  │  └───────────────────────┬──────────────────────────────┘  │
  │                          │ /api (JSON)                     │
  │  ┌───────────────────────▼──────────────────────────────┐  │
@@ -48,7 +49,7 @@ Four views: (1) system architecture, (2) end-to-end triage workflow, (3) RAG ing
 ```
 
 **Layer responsibilities:**
-- **React dashboard** — only thing users touch. Never talks to the DB directly. Screens shown depend on role.
+- **React dashboard** — only thing users touch. Never talks to the DB directly. Screens shown depend on role, **presentationally only**: the sidebar hides what a role cannot use, and the server independently refuses it (D21 decision 11). Routing is React Router, every read is a TanStack Query — including the polls that carry run status and the approval inbox, since the durable pause makes "wait for this to settle" the dominant interaction (D21 decisions 1 and 3). The container ships a production build behind nginx rather than a dev server, so Playwright and Phase 7 both exercise the artifact that deploys (D21 decision 7).
 - **FastAPI backend** — the security boundary. Authenticates (who you are) and tenant-filters (which org you belong to). Every query is scoped by `org_id`.
 - **LangGraph agent** — the state machine running triage steps in order. Checkpointed to Postgres so runs survive process restarts and approval waits.
 - **Tool registry** — the only actions the agent can take. 2 read tools auto-execute; 3 write tools are approval-gated. The agent cannot act outside the registry.
@@ -193,7 +194,8 @@ checkpoint whenever the human decides. LangGraph owns its own checkpoint tables 
 - **Measurement:** the deterministic scorer (`app/eval/scoring.py`) is pure functions only — no clock, no database, no model. That is what makes a recorded batch re-scorable to the same numbers, and therefore what makes two `agent_version`s comparable (G5.1, G5.5). Judgement lives in `app/eval/judge.py` on a *different model family* from triage (D5); config validation refuses a judge in the **same family** as triage, comparing the model name minus its `:tag` and provider prefix — exact-name comparison let `llama3.1:8b` be judged by `llama3.1:70b`, which is the same weights lineage and therefore the same blind spots (D20 finding 5).
 - **Provider abstraction:** only `backend/app/llm/provider.py` knows which LLM/embedding provider is active, and only `backend/app/auth/provider.py` knows which identity provider is (D18 decision 1). In both cases the *verification/validation* path is shared across providers; only the source of the key or the completion differs.
 - **Authentication:** every `/api` route except `/api/health` requires a bearer token. `org_id` is derived from the authenticated principal — no header, query parameter, or body field can influence it (G4.5).
-- **Authorization:** roles come from `user_roles`, never from token claims, so a revoked role takes effect on the next request. The role matrix is expressed once as named dependencies in `backend/app/auth/principal.py`.
+- **Authorization:** roles come from `user_roles`, never from token claims, so a revoked role takes effect on the next request. The role matrix is expressed once as named dependencies in `backend/app/auth/principal.py`. The SPA mirrors that matrix in `frontend/src/shell/Shell.tsx` for navigation only; the two are copied rather than derived, and where they disagree the server wins and the user sees a refusal instead of a broken screen.
+- **Gate selectors:** browser gates bind to `data-testid` values registered in `frontend/src/testids.ts`, never to copy or CSS classes — a gate that breaks when a heading is reworded is a gate that gets muted, and a muted gate is worse than none because it looks green. Changing an id there is a spec change.
 
 ---
 
@@ -212,6 +214,7 @@ incident.
 | hit@k document identity | Matched on normalised title (`MD-IT-001` ↔ "MD IT 001 vpn access policy") | A `documents.external_ref` column; retitling a document silently drops hit@k today |
 | Eval answer key | A JSON file mounted read-only into the containers | Unchanged by design — keeping the labels out of Postgres is what stops the agent reading them |
 | Token storage (SPA) | `sessionStorage`, cleared on 401 | httpOnly cookie + backend session, which XSS cannot read |
+| User and role management | Roles seeded by `scripts/seed.py`; no screen, no endpoint | `GET/POST/DELETE /api/users` plus an admin screen. Deliberately out of the MVP (D21 decision 5) — the ten-screen list omits it, and building it means new backend write APIs |
 | Dead-lettered runs | Terminal, visible on the run detail page | An operator-facing requeue action |
 
 ### HNSW index on `chunks.embedding`

@@ -24,6 +24,7 @@ from tests.phase3.conftest import (
     phase3_principals,
 )
 from tests.phase4.conftest import phase4_client, phase4_principals
+from tests.phase5.conftest import phase5_client, phase5_database_url
 
 
 @pytest.fixture(scope="session")
@@ -64,5 +65,7 @@ __all__ = [
     "phase4_client",
     "phase4_database_url",
     "phase4_principals",
+    "phase5_client",
+    "phase5_database_url",
     "repository_root",
 ]

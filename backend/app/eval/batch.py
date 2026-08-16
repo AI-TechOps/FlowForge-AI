@@ -10,11 +10,11 @@ which has no approval node, so a 20-ticket batch cannot strand 20 runs waiting
 for a human (D19 decision 2).
 """
 
-import asyncio
 import json
 import logging
+import math
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -26,10 +26,16 @@ from app.agents.prompts import AGENT_VERSION
 from app.config import get_settings
 from app.eval.judge import judge_result
 from app.eval.scoring import is_grounded, retrieval_hit, score_fields, summarize
+from app.ingestion.queue import enqueue_eval_batch
 from app.logging_config import bind_org, run_context
 from app.models import BatchStatus, EvalBatch, EvalResult, Run, RunStatus, Ticket
 
 logger = logging.getLogger(__name__)
+
+# How long the scorer waits between checks on a batch whose runs are still
+# going. Long enough that a twenty-run batch costs a handful of jobs, short
+# enough that a finished batch is recorded promptly.
+EVAL_POLL_SECONDS = 10
 
 # The repository layout, used when EVAL_LABELS_PATH is unset. Correct for a
 # local checkout and wrong inside the image, where `fixtures/` is outside the
@@ -221,14 +227,38 @@ def result_payload(result: EvalResult) -> dict[str, Any]:
     }
 
 
-async def score_batch(ctx: dict[str, Any], batch_id: str, org_id: str) -> str:
-    """arq entrypoint: wait for a batch's runs to settle, score them, finalize.
+def batch_deadline(batch: EvalBatch) -> datetime:
+    """When to stop waiting for a batch's runs and score what there is.
 
-    Polls rather than being driven by run completion, because the property that
-    matters is batch-level: G5.4 requires the batch to complete even when
-    individual runs fail, and a completion callback would have to invent a
-    story for the runs that never call back. A deadline plus "score whatever
-    state each run is in" makes that trivially true.
+    Sized to the batch rather than to one run. `run_timeout_seconds + 60` was
+    the whole budget, which is right for a single run and hopelessly short for
+    twenty of them: at four concurrent workers, twenty real-model runs are five
+    run-timeouts of work, so a real batch would have been cut off and every
+    unfinished run scored as a failure — an eval reporting the queue depth as
+    model accuracy.
+    """
+    settings = get_settings()
+    concurrency = max(1, settings.worker_concurrency)
+    waves = max(1, math.ceil(max(1, batch.total_tickets) / concurrency))
+    started = batch.started_at or batch.created_at
+    return started + timedelta(seconds=settings.run_timeout_seconds * waves + 120)
+
+
+async def score_batch(ctx: dict[str, Any], batch_id: str, org_id: str, attempt: int = 0) -> str:
+    """arq entrypoint: score a batch once its runs settle, else come back later.
+
+    Checks and re-enqueues rather than sleeping in a loop. A long-lived polling
+    job would outlive `job_timeout` on any real-model batch — arq would kill the
+    scorer mid-wait and the batch would sit in `running` forever — and a job
+    holding a database session for twenty minutes is the wrong shape besides.
+    Re-enqueueing also means a worker restart costs one deferred job, not the
+    scoring of the whole batch.
+
+    Waiting rather than being driven by run completion is still deliberate: G5.4
+    requires the batch to complete even when individual runs fail, and a
+    completion callback would have to invent a story for the runs that never
+    call back. A deadline plus "score whatever state each run is in" makes that
+    trivially true.
     """
     from app.db import async_session_factory
     from app.tenancy import get_scoped
@@ -236,14 +266,17 @@ async def score_batch(ctx: dict[str, Any], batch_id: str, org_id: str) -> str:
     batch_uuid = uuid.UUID(batch_id)
     org_uuid = uuid.UUID(org_id)
     bind_org(org_id)
-    settings = get_settings()
-    deadline = datetime.now(UTC).timestamp() + settings.run_timeout_seconds + 60
 
     async with async_session_factory() as session:
         batch = await get_scoped(session, EvalBatch, batch_uuid, org_uuid)
         if batch is None:
             logger.warning("eval batch %s not found in org %s", batch_id, org_id)
             return "missing"
+        if batch.status is not BatchStatus.running:
+            # Already finalized. A redelivered job must not re-open a recorded
+            # batch, or the regression table gains a second version of a row
+            # that was supposed to be history.
+            return batch.status.value
 
         try:
             labels = load_labels()
@@ -259,29 +292,38 @@ async def score_batch(ctx: dict[str, Any], batch_id: str, org_id: str) -> str:
             return "missing_labels"
 
         try:
-            while True:
-                runs = (
-                    (
-                        await session.execute(
-                            select(Run)
-                            .where(Run.eval_batch_id == batch_uuid, Run.org_id == org_uuid)
-                            # Overwrite the identity map's copies instead of
-                            # serving rows the worker has since updated. NOT
-                            # `session.expire_all()`, which also expires the
-                            # batch — and reading an expired attribute of it
-                            # afterwards is a synchronous lazy load, which on
-                            # asyncpg raises MissingGreenlet and leaves the
-                            # batch stuck in `running` forever.
-                            .execution_options(populate_existing=True)
-                        )
+            runs = (
+                (
+                    await session.execute(
+                        select(Run)
+                        .where(Run.eval_batch_id == batch_uuid, Run.org_id == org_uuid)
+                        # Overwrite the identity map's copies instead of
+                        # serving rows the worker has since updated. NOT
+                        # `session.expire_all()`, which also expires the
+                        # batch — and reading an expired attribute of it
+                        # afterwards is a synchronous lazy load, which on
+                        # asyncpg raises MissingGreenlet and leaves the
+                        # batch stuck in `running` forever.
+                        .execution_options(populate_existing=True)
                     )
-                    .scalars()
-                    .all()
                 )
-                unsettled = [r for r in runs if r.status not in SETTLED]
-                if not unsettled or datetime.now(UTC).timestamp() > deadline:
-                    break
-                await asyncio.sleep(2)
+                .scalars()
+                .all()
+            )
+            unsettled = [r for r in runs if r.status not in SETTLED]
+            if unsettled and datetime.now(UTC) < batch_deadline(batch):
+                await enqueue_eval_batch(
+                    batch_uuid, org_uuid, attempt=attempt + 1, defer_seconds=EVAL_POLL_SECONDS
+                )
+                logger.info(
+                    "eval batch %s: %s of %s runs still going; checking again in %ss",
+                    batch_id,
+                    len(unsettled),
+                    len(runs),
+                    EVAL_POLL_SECONDS,
+                    extra={"eval_batch_id": batch_id},
+                )
+                return "waiting"
 
             for run in runs:
                 ticket = await get_scoped(session, Ticket, run.ticket_id, org_uuid)

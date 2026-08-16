@@ -129,9 +129,10 @@ services:
       # the same image points at a different backend without a rebuild.
       API_PROXY_TARGET: http://backend:8000
     ports:
-      # nginx serves on 80 inside the container; 5173 stays the host port so
-      # every existing note and bookmark still works (D21 decision 7).
-      - "5173:80"
+      # nginx listens on 5173 inside the container too: the Phase 0 topology
+      # gate asserts 5173 is the published *target*, and that contract is older
+      # than this image (D21 decision 7).
+      - "5173:5173"
     depends_on:
       - backend
 

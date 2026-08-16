@@ -74,18 +74,12 @@ export default function App() {
   if (identity.isPending) return <Loading label="Signing in" />;
 
   if (identity.isError || !identity.data) {
-    // The token did not verify. Drop it and show the door again rather than
-    // leaving every screen to fail with its own 401.
-    return (
-      <>
-        <ErrorState error={identity.error ?? new Error("Could not load your identity")} />
-        <div style={{ textAlign: "center", paddingBottom: "var(--sp-8)" }}>
-          <button type="button" className="btn btn--primary" onClick={() => setToken(null)}>
-            Back to sign in
-          </button>
-        </div>
-      </>
-    );
+    // Two very different failures land here and "could not load your identity"
+    // describes only one of them: an expired token, and a backend that is not
+    // running at all. `GET /api/health` is the one endpoint that answers
+    // without a token, so it is what separates "sign in again" from "start the
+    // stack" — and the second is the one somebody demoing actually hits.
+    return <IdentityFailure error={identity.error} onRestart={() => setToken(null)} />;
   }
 
   return (
@@ -134,6 +128,53 @@ export default function App() {
         </Route>
       </Routes>
     </IdentityProvider>
+  );
+}
+
+/**
+ * Distinguishes an expired session from an unreachable backend by asking the
+ * one endpoint that needs no token: `/api/health`.
+ */
+function IdentityFailure({ error, onRestart }: { error: unknown; onRestart: () => void }) {
+  const [reachable, setReachable] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/health")
+      .then((r) => r.ok)
+      .catch(() => false)
+      .then((ok) => {
+        if (!cancelled) setReachable(ok);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  if (reachable === false) {
+    return (
+      <div className="state state--error" role="alert">
+        <div className="state__title">FlowForge is not reachable</div>
+        <p className="state__body">
+          The backend did not answer <code>/api/health</code>. If you are running this locally,
+          check that the <code>backend</code> container is up.
+        </p>
+        <button type="button" className="btn" onClick={() => window.location.reload()}>
+          Retry
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <ErrorState error={error ?? new Error("Could not load your identity")} />
+      <div style={{ textAlign: "center", paddingBottom: "var(--sp-8)" }}>
+        <button type="button" className="btn btn--primary" onClick={onRestart}>
+          Back to sign in
+        </button>
+      </div>
+    </>
   );
 }
 

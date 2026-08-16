@@ -41,8 +41,8 @@ COPY nginx.conf /etc/nginx/templates/default.conf.template
 # how the API host stays configurable without rebuilding the image.
 ENV API_PROXY_TARGET=http://backend:8000
 
-EXPOSE 80
+EXPOSE 5173
 
 # Fail the container's healthcheck if nginx stops serving the SPA shell.
 HEALTHCHECK --interval=15s --timeout=3s --start-period=5s --retries=3 \
-  CMD wget -qO- http://localhost/ >/dev/null 2>&1 || exit 1
+  CMD wget -qO- http://localhost:5173/ >/dev/null 2>&1 || exit 1

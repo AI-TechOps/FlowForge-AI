@@ -63,6 +63,14 @@ class Settings(BaseSettings):
     # container by eye; "json" is what makes the trail queryable.
     log_level: str = "INFO"
     log_format: Literal["json", "text"] = "json"
+    # Where the eval answer key lives (spec 06 §2). A path rather than a
+    # baked-in copy for two reasons: `fixtures/` is a dev-time artifact and is
+    # deliberately outside the backend build context (D6), and the labels must
+    # stay out of the database so the agent cannot read the answers it is being
+    # scored against. Empty means "the repository layout", which is what a
+    # local run wants; the containers mount the directory read-only and set
+    # this.
+    eval_labels_path: str = ""
     # Per-write-tool timeout; well under run_timeout so a hung adapter surfaces
     # as a tool failure with its own retry, not as a whole-run timeout.
     tool_timeout_seconds: int = 30

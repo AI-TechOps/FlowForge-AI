@@ -31,7 +31,26 @@ from app.models import BatchStatus, EvalBatch, EvalResult, Run, RunStatus, Ticke
 
 logger = logging.getLogger(__name__)
 
-FIXTURE = Path(__file__).resolve().parents[3] / "fixtures" / "eval_tickets.json"
+# The repository layout, used when EVAL_LABELS_PATH is unset. Correct for a
+# local checkout and wrong inside the image, where `fixtures/` is outside the
+# build context — which is why the containers set the variable and mount the
+# directory read-only.
+REPO_FIXTURE = Path(__file__).resolve().parents[3] / "fixtures" / "eval_tickets.json"
+
+
+class MissingLabels(RuntimeError):
+    """The answer key is not where configuration says it is.
+
+    Its own type so the API can turn it into an actionable 503 instead of a
+    bare 500: "the labels are not mounted" is an operator instruction, and a
+    stack trace is not.
+    """
+
+
+def labels_path() -> Path:
+    configured = get_settings().eval_labels_path.strip()
+    return Path(configured) if configured else REPO_FIXTURE
+
 
 # A run that reached any of these has finished producing output, one way or
 # another. `awaiting_approval` is absent on purpose: an eval run cannot reach
@@ -48,7 +67,15 @@ def load_labels() -> dict[str, dict[str, Any]]:
     Reading them here keeps that property — the eval knows the answers, the
     pipeline never does.
     """
-    data = json.loads(FIXTURE.read_text(encoding="utf-8"))
+    path = labels_path()
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError as exc:
+        raise MissingLabels(
+            f"no eval answer key at {path}. Set EVAL_LABELS_PATH, or mount "
+            "fixtures/ into the backend and worker containers as the compose "
+            "file does."
+        ) from exc
     return {record["id"]: record for record in data["eval_tickets"]}
 
 
@@ -218,7 +245,19 @@ async def score_batch(ctx: dict[str, Any], batch_id: str, org_id: str) -> str:
             logger.warning("eval batch %s not found in org %s", batch_id, org_id)
             return "missing"
 
-        labels = load_labels()
+        try:
+            labels = load_labels()
+        except MissingLabels:
+            # The API refuses to start a batch without the labels, so reaching
+            # here means they went missing between start and scoring. Mark the
+            # batch failed rather than leaving it running forever: a batch that
+            # never settles is worse than one that says why it stopped.
+            batch.status = BatchStatus.failed
+            batch.finished_at = datetime.now(UTC)
+            await session.commit()
+            logger.exception("eval batch %s cannot be scored", batch_id)
+            return "missing_labels"
+
         while True:
             runs = (
                 (

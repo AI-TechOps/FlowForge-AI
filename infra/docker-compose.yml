@@ -53,9 +53,15 @@ services:
       FAKE_LLM_MODE: ${FAKE_LLM_MODE:-valid}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       LOG_FORMAT: ${LOG_FORMAT:-json}
+      # The eval answer key. Mounted read-only rather than baked into the
+      # image: fixtures/ is a dev-time artifact outside the backend build
+      # context (D6), and the labels must stay out of the database so the
+      # agent cannot read the answers it is scored against.
+      EVAL_LABELS_PATH: /srv/fixtures/eval_tickets.json
       UPLOAD_DIR: /data/uploads
     volumes:
       - uploads:/data/uploads
+      - ../fixtures:/srv/fixtures:ro
     ports:
       - "8000:8000"
     depends_on:
@@ -93,9 +99,15 @@ services:
       FAKE_LLM_MODE: ${FAKE_LLM_MODE:-valid}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       LOG_FORMAT: ${LOG_FORMAT:-json}
+      # The eval answer key. Mounted read-only rather than baked into the
+      # image: fixtures/ is a dev-time artifact outside the backend build
+      # context (D6), and the labels must stay out of the database so the
+      # agent cannot read the answers it is scored against.
+      EVAL_LABELS_PATH: /srv/fixtures/eval_tickets.json
       UPLOAD_DIR: /data/uploads
     volumes:
       - uploads:/data/uploads
+      - ../fixtures:/srv/fixtures:ro
     depends_on:
       db:
         condition: service_healthy

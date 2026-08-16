@@ -16,7 +16,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.agents.prompts import AGENT_VERSION
 from app.auth.principal import ADMIN_ONLY, Principal
 from app.db import get_session
-from app.eval.batch import batch_payload, load_labels, new_batch, result_payload
+from app.eval.batch import (
+    MissingLabels,
+    batch_payload,
+    load_labels,
+    new_batch,
+    result_payload,
+)
 from app.ingestion.queue import enqueue_eval_batch, enqueue_run
 from app.models import EvalBatch, EvalResult, Run, RunStatus, Ticket
 from app.tenancy import get_scoped
@@ -38,7 +44,12 @@ async def start_eval_batch(
     an HTTP connection open for it would make one slow run everybody's problem.
     """
     org_id = principal.org_id
-    labels = load_labels()
+    try:
+        labels = load_labels()
+    except MissingLabels as exc:
+        # 503, not 500: the stack is fine, the answer key is not mounted, and
+        # the caller can be told exactly that.
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
 
     tickets = (
         (

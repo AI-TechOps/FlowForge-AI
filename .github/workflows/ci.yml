@@ -205,6 +205,26 @@ jobs:
           REDIS_URL: redis://localhost:6379/0
         run: pytest tests/phase4 -v --tb=short
 
+      # G5.1-G5.5. The pure halves (scoring determinism, judge schema, config
+      # validation, eval-graph shape) already ran in the fast job; here they
+      # run again alongside the live halves that need the worker -- metric
+      # truth against a hand-computed dataset, batch coverage, comparability.
+      #
+      # G5.2's canary pair stays skipped: it needs a real judge model, and this
+      # stack is the fake provider, which is semantically blind (D19 decision
+      # 3). It is measured against Ollama and recorded in eval/baseline.md.
+      - name: Run Phase 5 gates (G5.1-G5.5)
+        env:
+          PHASE5_REQUIRE_LIVE: "1"
+          PHASE5_DATABASE_URL: postgresql+asyncpg://flowforge:flowforge@localhost:5432/flowforge
+          PHASE5_BASE_URL: http://localhost:8000
+          # A fake-provider batch is seconds of work, but the batch also waits
+          # for its runs to settle; keep the ceiling well above that.
+          PHASE5_BATCH_TIMEOUT_SECONDS: "300"
+          DATABASE_URL: postgresql+asyncpg://flowforge:flowforge@localhost:5432/flowforge
+          REDIS_URL: redis://localhost:6379/0
+        run: pytest tests/phase5 -v --tb=short
+
       # Codex's adversarial probes. Several drive the live stack (credential
       # handling, cross-tenant run detail, rollback behaviour), so they belong
       # here rather than in the Postgres-only fast job.

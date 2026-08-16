@@ -497,9 +497,21 @@ async def _finalize(session: Any, run: Run, state: dict[str, Any]) -> str:
     run.confidence = state.get("confidence")
     run.finished_at = datetime.now(UTC)
 
-    ticket = await get_scoped(session, Ticket, run.ticket_id, run.org_id)
-    if ticket is not None and ticket.status == TicketStatus.new:
-        ticket.status = TicketStatus.triaged
+    # An eval run reads its seed ticket and writes nothing back to it. D19
+    # decision 2 buys that property by compiling a graph with no approval and
+    # no execute node, but graph topology only covers what the graph does —
+    # this finalizer is shared with real runs and was moving every eval seed
+    # from `new` to `triaged` (Codex Phase 5 finding 4).
+    #
+    # It matters beyond tidiness: the seed set is the fixed input a regression
+    # table is measured against, and a batch that mutates its own subjects
+    # means batch two runs against different tickets than batch one. The
+    # "no writes" property has to hold in the shared lifecycle code too, not
+    # only in the topology.
+    if run.eval_batch_id is None:
+        ticket = await get_scoped(session, Ticket, run.ticket_id, run.org_id)
+        if ticket is not None and ticket.status == TicketStatus.new:
+            ticket.status = TicketStatus.triaged
 
     await session.commit()
     return RunStatus.completed.value

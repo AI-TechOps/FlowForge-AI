@@ -115,16 +115,23 @@ services:
         condition: service_healthy
 
   frontend:
-    build: ../frontend
+    build:
+      context: ../frontend
+      # Auth0 settings are compiled into the bundle, so they are build args
+      # rather than runtime env (see frontend/src/auth.ts for why the SPA does
+      # not fetch them). Absent means the local dev issuer.
+      args:
+        VITE_AUTH0_DOMAIN: ${AUTH0_DOMAIN:-}
+        VITE_AUTH0_CLIENT_ID: ${AUTH0_CLIENT_ID:-}
+        VITE_AUTH0_AUDIENCE: ${AUTH0_AUDIENCE:-}
     environment:
+      # Runtime, and the only thing that is: nginx substitutes it at boot, so
+      # the same image points at a different backend without a rebuild.
       API_PROXY_TARGET: http://backend:8000
-      # Read at build time by the SPA. Absent means the local dev issuer;
-      # see frontend/src/auth.ts for why this is not served by the API.
-      VITE_AUTH0_DOMAIN: ${AUTH0_DOMAIN:-}
-      VITE_AUTH0_CLIENT_ID: ${AUTH0_CLIENT_ID:-}
-      VITE_AUTH0_AUDIENCE: ${AUTH0_AUDIENCE:-}
     ports:
-      - "5173:5173"
+      # nginx serves on 80 inside the container; 5173 stays the host port so
+      # every existing note and bookmark still works (D21 decision 7).
+      - "5173:80"
     depends_on:
       - backend
 

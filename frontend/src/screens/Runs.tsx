@@ -59,6 +59,7 @@ export function Runs() {
   return (
     <div>
       <PageHead
+        eyebrow="Act 2 · the agent reads, retrieves and proposes"
         title="Runs"
         subtitle="Every triage execution, and what happened to it."
       />

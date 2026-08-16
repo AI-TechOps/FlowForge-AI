@@ -30,6 +30,7 @@ import {
   ShortId,
   timeAgo,
 } from "../components/ui";
+import { useToast } from "../components/Toast";
 import { useHasRole, useTitle } from "../shell/Shell";
 import { TID, testid } from "../testids";
 
@@ -55,6 +56,7 @@ export function Approvals() {
   return (
     <div {...testid(TID.approvalInbox)}>
       <PageHead
+        eyebrow="Act 4 · a person decides"
         title="Approval inbox"
         subtitle="The agent proposes; a person decides. Nothing is written to the ticket system until it is approved here."
       />
@@ -81,11 +83,7 @@ export function Approvals() {
                     <tr
                       key={approval.id}
                       onClick={() => setSelected(approval.id)}
-                      style={
-                        approval.id === selected
-                          ? { background: "var(--accent-quiet)" }
-                          : undefined
-                      }
+                      aria-selected={approval.id === selected}
                       {...testid(TID.approvalRow(approval.id))}
                     >
                       <td>
@@ -121,6 +119,7 @@ function ApprovalCard({ approvalId }: { approvalId: string }) {
   const approval = useApproval(approvalId);
   const canDecide = useHasRole("approver");
   const decide = useDecide(approvalId);
+  const toast = useToast();
   const [mode, setMode] = useState<"edit" | "reject" | null>(null);
 
   if (approval.isPending) return <Panel><Loading rows={6} /></Panel>;
@@ -220,7 +219,28 @@ function ApprovalCard({ approvalId }: { approvalId: string }) {
               type="button"
               className="btn btn--primary"
               disabled={decide.isPending}
-              onClick={() => decide.mutate({ decision: "approved" })}
+              onClick={() =>
+                decide.mutate(
+                  { decision: "approved" },
+                  {
+                    // The write happens in a worker, on a screen the approver
+                    // is about to leave. Without this the only feedback is a
+                    // row quietly changing somewhere else.
+                    onSuccess: () =>
+                      toast({
+                        tone: "ok",
+                        title: "Approved",
+                        body: "The run resumed; the write executes against the ticket system now.",
+                      }),
+                    onError: (e) =>
+                      toast({
+                        tone: "err",
+                        title: "Could not approve",
+                        body: e instanceof Error ? e.message : undefined,
+                      }),
+                  },
+                )
+              }
               {...testid(TID.approve)}
             >
               {decide.isPending ? "Working…" : "Approve"}
@@ -272,7 +292,19 @@ function ApprovalCard({ approvalId }: { approvalId: string }) {
           pending={decide.isPending}
           onClose={() => setMode(null)}
           onSubmit={(final) =>
-            decide.mutate({ decision: "edited", final_values: final }, { onSuccess: () => setMode(null) })
+            decide.mutate(
+              { decision: "edited", final_values: final },
+              {
+                onSuccess: () => {
+                  setMode(null);
+                  toast({
+                    tone: "ok",
+                    title: "Approved with edits",
+                    body: "Both the agent's proposal and your edit are in the audit record.",
+                  });
+                },
+              },
+            )
           }
         />
       )}
@@ -281,7 +313,19 @@ function ApprovalCard({ approvalId }: { approvalId: string }) {
           pending={decide.isPending}
           onClose={() => setMode(null)}
           onSubmit={(feedback) =>
-            decide.mutate({ decision: "rejected", feedback }, { onSuccess: () => setMode(null) })
+            decide.mutate(
+              { decision: "rejected", feedback },
+              {
+                onSuccess: () => {
+                  setMode(null);
+                  toast({
+                    tone: "info",
+                    title: "Rejected",
+                    body: "No write reached the ticket system. Your feedback is on the run.",
+                  });
+                },
+              },
+            )
           }
         />
       )}

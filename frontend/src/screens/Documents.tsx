@@ -26,6 +26,7 @@ import {
   Panel,
   timeAgo,
 } from "../components/ui";
+import { useToast } from "../components/Toast";
 import { useTitle } from "../shell/Shell";
 import { TID, testid } from "../testids";
 
@@ -44,6 +45,7 @@ export function Documents() {
   return (
     <div {...testid(TID.documents)}>
       <PageHead
+        eyebrow="Act 0 · the knowledge the agent may cite"
         title="Knowledge documents"
         subtitle="The corpus every recommendation must cite. A document that is not ready cannot ground an answer."
         actions={
@@ -154,6 +156,7 @@ export function Documents() {
 
 function UploadModal({ onClose }: { onClose: () => void }) {
   const upload = useUploadDocument();
+  const toast = useToast();
   const [file, setFile] = useState<File | null>(null);
   const [title, setTitle] = useState("");
   const [version, setVersion] = useState("1");
@@ -194,7 +197,16 @@ function UploadModal({ onClose }: { onClose: () => void }) {
     form.append("file", file);
     if (title.trim()) form.append("title", title.trim());
     form.append("version", version.trim() || "1");
-    upload.mutate(form, { onSuccess: onClose });
+    upload.mutate(form, {
+      onSuccess: (doc) => {
+        onClose();
+        toast({
+          tone: "ok",
+          title: "Upload accepted",
+          body: `${doc.title} is being extracted, chunked and embedded. The list shows live status.`,
+        });
+      },
+    });
   };
 
   const error = localError ?? (upload.error instanceof Error ? upload.error.message : null);

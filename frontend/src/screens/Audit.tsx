@@ -75,6 +75,7 @@ export function Audit() {
   return (
     <div {...testid(TID.audit)}>
       <PageHead
+        eyebrow="The record · every step, every actor"
         title="Audit log"
         subtitle="Every agent step, tool call, model call and human decision — the record that makes a run reconstructable."
       />

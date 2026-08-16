@@ -25,6 +25,7 @@ import {
   TicketBadge,
   timeAgo,
 } from "../components/ui";
+import { useToast } from "../components/Toast";
 import { useHasRole, useTitle } from "../shell/Shell";
 import { TID, testid } from "../testids";
 
@@ -51,16 +52,24 @@ export function Tickets() {
 
   const tickets = useTickets(filters);
   const triage = useStartTriage();
+  const toast = useToast();
 
   const startTriage = (ticket: Ticket) => {
     triage.mutate(ticket.id, {
       onSuccess: (run) => navigate(`/runs/${run.id}`),
+      onError: (e) =>
+        toast({
+          tone: "err",
+          title: "Could not start triage",
+          body: e instanceof Error ? e.message : undefined,
+        }),
     });
   };
 
   return (
     <div {...testid(TID.tickets)}>
       <PageHead
+        eyebrow="Act 1 · the request arrives"
         title="Tickets"
         subtitle="Support issues waiting for triage, and the ones the agent has already handled."
         actions={

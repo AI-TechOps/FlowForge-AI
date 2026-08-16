@@ -31,6 +31,7 @@ import {
   Panel,
   RunBadge,
   ShortId,
+  CopyId,
   formatDateTime,
 } from "../components/ui";
 import { useHasRole, useTitle } from "../shell/Shell";
@@ -47,8 +48,9 @@ const STEPS: { key: string; label: string; reached: RunStatus[] }[] = [
 
 function Timeline({ status }: { status: RunStatus }) {
   const failed = status === "failed";
+  const rejected = status === "rejected";
   return (
-    <div className="timeline" {...testid(TID.runTimeline)}>
+    <div className="stepper" {...testid(TID.runTimeline)}>
       {STEPS.map((step, index) => {
         const done = step.reached.includes(status);
         const current =
@@ -58,27 +60,27 @@ function Timeline({ status }: { status: RunStatus }) {
           (status === "executing" && step.key === "execute") ||
           (status === "completed" && step.key === "done");
         const cls = current
-          ? "timeline__step timeline__step--current"
+          ? "step step--current"
           : done
-            ? "timeline__step timeline__step--done"
-            : "timeline__step";
+            ? "step step--done"
+            : "step";
         return (
           <span key={step.key} style={{ display: "contents" }}>
-            {index > 0 && <span className="timeline__sep">→</span>}
-            <span className={cls}>{step.label}</span>
+            {index > 0 && <span className="step__rule" />}
+            <span className={cls}>
+              <span className="step__num">{done && !current ? "✓" : index + 1}</span>
+              {step.label}
+            </span>
           </span>
         );
       })}
-      {failed && (
+      {(failed || rejected) && (
         <>
-          <span className="timeline__sep">→</span>
-          <span className="timeline__step timeline__step--failed">Failed</span>
-        </>
-      )}
-      {status === "rejected" && (
-        <>
-          <span className="timeline__sep">→</span>
-          <span className="timeline__step timeline__step--failed">Rejected — no write</span>
+          <span className="step__rule" />
+          <span className="step step--failed">
+            <span className="step__num">!</span>
+            {failed ? "Failed" : "Rejected — no write"}
+          </span>
         </>
       )}
     </div>
@@ -107,7 +109,12 @@ function EvidenceItem({ chunk, cited }: { chunk: EvidenceChunk; cited: boolean }
           </span>
         )}
         {chunk.score !== null && chunk.score !== undefined && (
-          <span className="evidence__score">{chunk.score.toFixed(3)}</span>
+          <span className="evidence__score">
+            {chunk.score.toFixed(3)}
+            <span className="evidence__meter">
+              <span style={{ width: `${Math.max(0, Math.min(1, chunk.score)) * 100}%` }} />
+            </span>
+          </span>
         )}
       </div>
       {chunk.text && <p className="evidence__text">{chunk.text}</p>}
@@ -151,10 +158,11 @@ export function RunDetail() {
   return (
     <div {...testid(TID.runDetail)}>
       <PageHead
+        eyebrow="Act 3 · propose, pause, and only then write"
         title="Workflow run"
         subtitle={
           <>
-            <ShortId id={r.id} />
+            <CopyId id={r.id} />
             {r.agent_version && <span className="faint"> · {r.agent_version}</span>}
             {r.eval_batch_id && (
               <span className="badge badge--accent" style={{ marginLeft: "var(--sp-2)" }}>

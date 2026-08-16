@@ -13,6 +13,7 @@ import { useEffect, useState } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 
 import { useApprovals, useHealth } from "../api/hooks";
+import { CommandPalette, useCommandPalette } from "../components/CommandPalette";
 import type { Identity, Role } from "../api/types";
 import { Icon } from "../components/ui";
 import { clearToken, storedToken } from "../auth";
@@ -62,6 +63,8 @@ export function Shell({ identity }: { identity: Identity }) {
   const navigate = useNavigate();
   const [theme, setThemeState] = useState<Theme>(() => activeTheme());
   const health = useHealth();
+  const palette = useCommandPalette();
+  const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
 
   const isApprover = identity.roles.includes("approver") || identity.roles.includes("administrator");
   // Only fetched for roles that may read it — an operator polling a 403 every
@@ -128,66 +131,99 @@ export function Shell({ identity }: { identity: Identity }) {
         </nav>
 
         <div className="sidebar__footer">
-          <div style={{ padding: "0 var(--sp-2)" }}>
-            <div className="truncate" style={{ fontWeight: 500 }} {...testid(TID.userEmail)}>
-              {identity.email}
-            </div>
-            <div className="faint" style={{ fontSize: "var(--fs-xs)" }} {...testid(TID.userRoles)}>
-              {identity.roles.join(" · ") || "no roles"}
+          <div className="user-chip">
+            <span className="avatar">{identity.email.slice(0, 2)}</span>
+            <div style={{ minWidth: 0 }}>
+              <div className="truncate" style={{ fontWeight: 500 }} {...testid(TID.userEmail)}>
+                {identity.email}
+              </div>
+              <div
+                className="faint truncate"
+                style={{ fontSize: "var(--fs-xs)" }}
+                {...testid(TID.userRoles)}
+              >
+                {identity.roles.join(" · ") || "no roles"}
+              </div>
             </div>
           </div>
-          <div className="row">
-            <button
-              type="button"
-              className="btn btn--ghost btn--sm"
-              onClick={toggleTheme}
-              {...testid(TID.themeToggle)}
-              aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} theme`}
-              title={`Switch to ${theme === "dark" ? "light" : "dark"} theme`}
-            >
-              {theme === "dark" ? Icon.sun({ size: 14 }) : Icon.moon({ size: 14 })}
-            </button>
-            <button
-              type="button"
-              className="btn btn--ghost btn--sm"
-              onClick={() => void signOut()}
-              {...testid(TID.signOut)}
-            >
-              Sign out
-            </button>
-          </div>
+          <button
+            type="button"
+            className="btn btn--ghost btn--sm"
+            style={{ justifyContent: "flex-start" }}
+            onClick={() => void signOut()}
+            {...testid(TID.signOut)}
+          >
+            Sign out
+          </button>
         </div>
       </aside>
 
       <div className="main">
         <div className="topbar">
+          <button
+            type="button"
+            className="searchbtn"
+            onClick={() => palette.setOpen(true)}
+            {...testid(TID.paletteOpen)}
+          >
+            {Icon.search({ size: 14 })}
+            Search or jump to…
+            <span className="searchbtn__hint">
+              <kbd className="kbd">{isMac ? "⌘" : "ctrl"}</kbd>
+              <kbd className="kbd">K</kbd>
+            </span>
+          </button>
+
+          <span className="topbar__spacer" />
+
           <span
-            {...testid(TID.healthDot)}
+            className="row"
+            style={{ gap: "var(--sp-2)" }}
             title={
               health.data
                 ? `backend ${health.data.status} · db ${health.data.db} · redis ${health.data.redis}`
                 : "backend unreachable"
             }
-            style={{
-              width: 8,
-              height: 8,
-              borderRadius: "50%",
-              background: health.data?.status === "ok" ? "var(--ok)" : "var(--err)",
-            }}
-          />
-          <span className="faint" style={{ fontSize: "var(--fs-xs)" }}>
-            {health.data?.status === "ok" ? "All systems operational" : "Backend unreachable"}
+          >
+            <span
+              {...testid(TID.healthDot)}
+              className={health.data?.status === "ok" ? "badge__dot badge__dot--live" : "badge__dot"}
+              style={{
+                color: health.data?.status === "ok" ? "var(--ok)" : "var(--err)",
+              }}
+            />
+            <span className="faint" style={{ fontSize: "var(--fs-xs)" }}>
+              {health.data?.status === "ok" ? "All systems operational" : "Backend unreachable"}
+            </span>
           </span>
-          <span className="topbar__spacer" />
+
           <span className="mono faint" style={{ fontSize: "var(--fs-xs)" }} title="Organization">
             org {identity.org_id.slice(0, 8)}
           </span>
+
+          <button
+            type="button"
+            className="btn btn--ghost btn--sm btn--icon"
+            onClick={toggleTheme}
+            {...testid(TID.themeToggle)}
+            aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} theme`}
+            title={`Switch to ${theme === "dark" ? "light" : "dark"} theme`}
+          >
+            {theme === "dark" ? Icon.sun({ size: 14 }) : Icon.moon({ size: 14 })}
+          </button>
         </div>
 
         <main className="content">
           <Outlet />
         </main>
       </div>
+
+      <CommandPalette
+        open={palette.open}
+        onClose={() => palette.setOpen(false)}
+        roles={identity.roles}
+        onToggleTheme={toggleTheme}
+      />
     </div>
   );
 }

@@ -51,6 +51,7 @@ export function AgentConfig() {
   return (
     <div {...testid(TID.agentConfig)}>
       <PageHead
+        eyebrow="Configuration lives in code"
         title="Agent configuration"
         subtitle="What is running right now. Read-only by design — agent configuration lives in code and database records, so changing it is a commit."
       />

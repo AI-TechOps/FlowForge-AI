@@ -43,6 +43,7 @@ export function Evaluation() {
   return (
     <div {...testid(TID.evaluation)}>
       <PageHead
+        eyebrow="Act 5 · measured against a labelled answer key"
         title="Evaluation"
         subtitle="The agent scored against a labelled seed set — deterministic per-field accuracy, plus a judge running on a different model family."
         actions={
@@ -97,7 +98,7 @@ export function Evaluation() {
                     <tr
                       key={batch.id}
                       onClick={() => setSelected(batch.id)}
-                      style={batch.id === current ? { background: "var(--accent-quiet)" } : undefined}
+                      aria-selected={batch.id === current}
                       {...testid(TID.evalBatchRow(batch.id))}
                     >
                       <td>

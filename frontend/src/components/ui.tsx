@@ -7,6 +7,7 @@
  * case is as easy to render as the happy one.
  */
 
+import { useState } from "react";
 import type { ReactNode } from "react";
 
 import { TID, testid } from "../testids";
@@ -127,6 +128,53 @@ export const Icon = {
       </>,
       p,
     ),
+  search: (p: IconProps = {}) =>
+    svg(
+      <>
+        <circle cx="7" cy="7" r="4.5" />
+        <path d="M10.5 10.5 14 14" />
+      </>,
+      p,
+    ),
+  check: (p: IconProps = {}) => svg(<path d="M3.5 8.5 6.5 11.5 12.5 4.5" />, p),
+  clock: (p: IconProps = {}) =>
+    svg(
+      <>
+        <circle cx="8" cy="8" r="6" />
+        <path d="M8 4.5V8l2.5 1.5" />
+      </>,
+      p,
+    ),
+  spark: (p: IconProps = {}) =>
+    svg(<path d="M8 1.5 9.6 6l4.4 1.5L9.6 9 8 13.5 6.4 9 2 7.5 6.4 6z" />, p),
+  coins: (p: IconProps = {}) =>
+    svg(
+      <>
+        <ellipse cx="8" cy="4" rx="5" ry="2.2" />
+        <path d="M3 4v8c0 1.2 2.2 2.2 5 2.2s5-1 5-2.2V4" />
+        <path d="M3 8c0 1.2 2.2 2.2 5 2.2s5-1 5-2.2" />
+      </>,
+      p,
+    ),
+  shield: (p: IconProps = {}) =>
+    svg(<path d="M8 1.5 13.5 4v4c0 3-2.3 5.6-5.5 6.5C4.8 13.6 2.5 11 2.5 8V4L8 1.5Z" />, p),
+  target: (p: IconProps = {}) =>
+    svg(
+      <>
+        <circle cx="8" cy="8" r="6" />
+        <circle cx="8" cy="8" r="2.5" />
+      </>,
+      p,
+    ),
+  copy: (p: IconProps = {}) =>
+    svg(
+      <>
+        <rect x="5.5" y="5.5" width="8" height="8" rx="1.5" />
+        <path d="M10.5 5.5v-2a1.5 1.5 0 0 0-1.5-1.5H4a1.5 1.5 0 0 0-1.5 1.5v5A1.5 1.5 0 0 0 4 10h1.5" />
+      </>,
+      p,
+    ),
+  arrowRight: (p: IconProps = {}) => svg(<path d="M3 8h9M8.5 4.5 12 8l-3.5 3.5" />, p),
   chevron: (p: IconProps = {}) => svg(<path d="M6 4l4 4-4 4" />, p),
   external: (p: IconProps = {}) =>
     svg(
@@ -284,10 +332,14 @@ export const ShortId = ({ id }: { id: string }) => (
 );
 
 export function PageHead({
+  eyebrow,
   title,
   subtitle,
   actions,
 }: {
+  /** Mono uppercase kicker. Says what kind of page this is before the eye
+      reaches the heading. */
+  eyebrow?: string;
   title: string;
   subtitle?: ReactNode;
   actions?: ReactNode;
@@ -295,11 +347,35 @@ export function PageHead({
   return (
     <header className="page-head">
       <div className="page-head__text">
+        {eyebrow && <div className="eyebrow">{eyebrow}</div>}
         <h1>{title}</h1>
         {subtitle && <p>{subtitle}</p>}
       </div>
       {actions && <div className="page-head__actions">{actions}</div>}
     </header>
+  );
+}
+
+/** A uuid you can click to copy. Shows 8 characters; carries all 36. */
+export function CopyId({ id, label }: { id: string; label?: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <button
+      type="button"
+      className="idchip"
+      title={`${id} — click to copy`}
+      {...testid(TID.copyId)}
+      onClick={(e) => {
+        e.stopPropagation();
+        void navigator.clipboard?.writeText(id).then(() => {
+          setCopied(true);
+          setTimeout(() => setCopied(false), 1400);
+        });
+      }}
+    >
+      {copied ? Icon.check({ size: 11 }) : Icon.copy({ size: 11 })}
+      {label ?? id.slice(0, 8)}
+    </button>
   );
 }
 

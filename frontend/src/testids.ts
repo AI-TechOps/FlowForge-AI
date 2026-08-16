@@ -137,6 +137,18 @@ export const TID = {
   auditPrev: "audit-prev",
   auditTotal: "audit-total",
 
+  /* ---- interactive layer (added after the visual overhaul; adding an id
+     is free, changing or removing one is a spec change) ---------------- */
+  palette: "palette",
+  paletteInput: "palette-input",
+  paletteItem: (id: string) => `palette-${id}`,
+  paletteOpen: "palette-open",
+  toast: "toast",
+  activityFeed: "activity-feed",
+  runsChart: "runs-chart",
+  categoryDonut: "category-donut",
+  copyId: "copy-id",
+
   /* ---- agent config -------------------------------------------------- */
   agentConfig: "agent-config",
   configField: (key: string) => `config-${key}`,

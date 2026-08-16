@@ -86,10 +86,10 @@ async def _seed_two_versions(database_url: str, org_id: str) -> None:
             await connection.execute(
                 """
                 INSERT INTO eval_batches (
-                    id, org_id, agent_version, triage_model, judge_model, status,
-                    total_tickets, started_at, finished_at, summary, created_at
+                    id, org_id, agent_version, llm_provider, triage_model, judge_model,
+                    status, total_tickets, started_at, finished_at, summary, created_at
                 )
-                VALUES ($1, $2, $3, 'llama3.1:8b', 'qwen2.5:7b',
+                VALUES ($1, $2, $3, 'ollama', 'llama3.1:8b', 'qwen2.5:7b',
                         'completed'::eval_batch_status, 20, $4, $4, $5::jsonb, $4)
                 """,
                 uuid4(),
@@ -169,6 +169,10 @@ def test_g5_5_two_versions_appear_side_by_side_with_identical_metric_keys(
         assert (
             batch["agent_version"] and batch["triage_model"] and batch["judge_model"]
         ), batch
+        # And which provider produced it: the fake provider runs under the
+        # configured model name, so a harness row and a real row are otherwise
+        # indistinguishable -- two rows that look comparable but are not.
+        assert batch["llm_provider"], batch
 
 
 def test_g5_5_batches_are_tenant_scoped(

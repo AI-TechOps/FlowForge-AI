@@ -40,6 +40,10 @@ class EvalBatch(TenantBase, TimestampMixin, Base):
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     agent_version: Mapped[str] = mapped_column(String(50), nullable=False)
     triage_model: Mapped[str] = mapped_column(String(100), nullable=False)
+    # Which provider produced the row. The fake provider runs under the
+    # configured TRIAGE_MODEL name, so without this a harness batch and a
+    # real one are indistinguishable in the regression table (G5.5).
+    llm_provider: Mapped[str] = mapped_column(String(20), nullable=False, default="unknown")
     judge_model: Mapped[str | None] = mapped_column(String(100))
     status: Mapped[BatchStatus] = mapped_column(
         Enum(BatchStatus, name="eval_batch_status", values_callable=lambda e: [m.value for m in e]),

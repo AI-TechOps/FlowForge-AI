@@ -203,6 +203,7 @@ def batch_payload(batch: EvalBatch) -> dict[str, Any]:
         "id": str(batch.id),
         "status": batch.status.value,
         "agent_version": batch.agent_version,
+        "llm_provider": batch.llm_provider,
         "triage_model": batch.triage_model,
         "judge_model": batch.judge_model,
         "total_tickets": batch.total_tickets,
@@ -364,6 +365,7 @@ def new_batch(org_id: uuid.UUID, total: int) -> EvalBatch:
     return EvalBatch(
         org_id=org_id,
         agent_version=AGENT_VERSION,
+        llm_provider=settings.llm_provider,
         triage_model=settings.triage_model,
         judge_model=settings.judge_model,
         status=BatchStatus.running,

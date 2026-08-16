@@ -10,6 +10,7 @@ which has no approval node, so a 20-ticket batch cannot strand 20 runs waiting
 for a human (D19 decision 2).
 """
 
+import asyncio
 import json
 import logging
 import uuid
@@ -179,6 +180,62 @@ def result_payload(result: EvalResult) -> dict[str, Any]:
         "judge_model": result.judge_model,
         "failure_reason": result.failure_reason,
     }
+
+
+async def score_batch(ctx: dict[str, Any], batch_id: str, org_id: str) -> str:
+    """arq entrypoint: wait for a batch's runs to settle, score them, finalize.
+
+    Polls rather than being driven by run completion, because the property that
+    matters is batch-level: G5.4 requires the batch to complete even when
+    individual runs fail, and a completion callback would have to invent a
+    story for the runs that never call back. A deadline plus "score whatever
+    state each run is in" makes that trivially true.
+    """
+    from app.db import async_session_factory
+    from app.tenancy import get_scoped
+
+    batch_uuid = uuid.UUID(batch_id)
+    org_uuid = uuid.UUID(org_id)
+    settings = get_settings()
+    deadline = datetime.now(UTC).timestamp() + settings.run_timeout_seconds + 60
+
+    async with async_session_factory() as session:
+        batch = await get_scoped(session, EvalBatch, batch_uuid, org_uuid)
+        if batch is None:
+            logger.warning("eval batch %s not found in org %s", batch_id, org_id)
+            return "missing"
+
+        labels = load_labels()
+        while True:
+            runs = (
+                (
+                    await session.execute(
+                        select(Run).where(Run.eval_batch_id == batch_uuid, Run.org_id == org_uuid)
+                    )
+                )
+                .scalars()
+                .all()
+            )
+            unsettled = [r for r in runs if r.status not in SETTLED]
+            if not unsettled or datetime.now(UTC).timestamp() > deadline:
+                break
+            # Expire so the next iteration re-reads rather than serving the
+            # identity map's stale copies of rows the worker is updating.
+            session.expire_all()
+            await asyncio.sleep(2)
+
+        for run in runs:
+            ticket = await get_scoped(session, Ticket, run.ticket_id, org_uuid)
+            if ticket is None:
+                continue
+            label = labels.get(ticket.external_ref or "")
+            if label is None:
+                continue
+            await score_run(session, batch, ticket, run, label)
+        await session.commit()
+
+        summary = await finalize_batch(session, batch)
+        return str(summary.get("accuracy_overall"))
 
 
 def new_batch(org_id: uuid.UUID, total: int) -> EvalBatch:

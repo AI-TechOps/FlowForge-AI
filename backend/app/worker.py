@@ -18,7 +18,9 @@ from app.agents.runner import (
     resume_run,
 )
 from app.config import get_settings
+from app.eval.batch import score_batch
 from app.ingestion.pipeline import ingest_document
+from app.logging_config import configure_logging
 
 
 async def startup(ctx: dict[str, Any]) -> None:
@@ -29,6 +31,8 @@ async def startup(ctx: dict[str, Any]) -> None:
     from inside a job — which holds one open for the whole run — it deadlocks
     against the very run that triggered it.
     """
+    settings = get_settings()
+    configure_logging(settings.log_level, settings.log_format)
     try:
         await ensure_schema()
     except Exception:  # noqa: BLE001 - a cold stack has no tables yet either
@@ -40,7 +44,7 @@ async def startup(ctx: dict[str, Any]) -> None:
 
 
 class WorkerSettings:
-    functions = [ingest_document, execute_run, resume_run]
+    functions = [ingest_document, execute_run, resume_run, score_batch]
     # Reconcile every 5s. A decision commits before its resume is enqueued, so
     # a queue outage in that window leaves an irreversible decision with
     # nothing to act on it — and the approver cannot retry, because a second

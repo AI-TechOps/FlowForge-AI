@@ -102,9 +102,25 @@ def upgrade() -> None:
         # how many rows happen to exist.
         sa.UniqueConstraint("batch_id", "ticket_id", name="uq_eval_results_batch_ticket"),
     )
+    # Which batch a run belongs to, and the only thing that selects the eval
+    # graph. Deliberately ONE column rather than a separate `is_eval` boolean:
+    # two markers can disagree, and the one that decides whether a run can
+    # write is not a good place for ambiguity.
+    op.add_column(
+        "runs",
+        sa.Column(
+            "eval_batch_id",
+            UUID(as_uuid=True),
+            sa.ForeignKey("eval_batches.id", ondelete="SET NULL"),
+            nullable=True,
+        ),
+    )
+    op.create_index("ix_runs_eval_batch_id", "runs", ["eval_batch_id"])
 
 
 def downgrade() -> None:
+    op.drop_index("ix_runs_eval_batch_id", table_name="runs")
+    op.drop_column("runs", "eval_batch_id")
     op.drop_table("eval_results")
     op.drop_table("eval_batches")
     sa.Enum(name="eval_batch_status").drop(op.get_bind(), checkfirst=True)

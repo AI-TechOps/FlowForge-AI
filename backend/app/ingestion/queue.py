@@ -81,6 +81,16 @@ async def enqueue_run(
     )
 
 
+async def enqueue_eval_batch(batch_id: uuid.UUID, org_id: uuid.UUID) -> None:
+    """Score an eval batch once its runs settle (spec 06 §2).
+
+    Keyed by batch id, so a duplicate delivery scores the batch once rather
+    than racing a second scorer against the same rows.
+    """
+    queue = await get_queue()
+    await queue.enqueue_job("score_batch", str(batch_id), str(org_id), _job_id=f"eval:{batch_id}")
+
+
 async def enqueue_resume(
     run_id: uuid.UUID,
     org_id: uuid.UUID,

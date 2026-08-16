@@ -59,6 +59,10 @@ class Settings(BaseSettings):
     # twice is not going to succeed on the fifth try, it is going to occupy a
     # worker slot five times.
     max_run_attempts: int = 3
+    # Structured logging (spec 06 §3). "text" stays available for tailing a
+    # container by eye; "json" is what makes the trail queryable.
+    log_level: str = "INFO"
+    log_format: Literal["json", "text"] = "json"
     # Per-write-tool timeout; well under run_timeout so a hung adapter surfaces
     # as a tool failure with its own retry, not as a whole-run timeout.
     tool_timeout_seconds: int = 30

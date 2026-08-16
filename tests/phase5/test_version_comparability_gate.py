@@ -238,9 +238,9 @@ def test_g5_5_baseline_table_has_at_least_two_comparable_entries() -> None:
             "two versions can only be compared if their metrics line up"
         )
     for column in ("agent_version", "overall"):
-        assert any(
-            column in cell.lower() for cell in header
-        ), f"the regression table has no {column} column: {header}"
+        assert any(column in cell.lower() for cell in header), (
+            f"the regression table has no {column} column: {header}"
+        )
 
 
 def test_g5_5_baseline_names_the_models_each_row_was_produced_by() -> None:

@@ -140,9 +140,9 @@ def test_g5_4_a_batch_is_administrator_only(
 
 def test_g5_4_batch_covers_every_seed_ticket(batch: dict[str, Any]) -> None:
     assert batch["status"] == "completed", batch
-    assert (
-        len(batch["results"]) == TICKET_COUNT
-    ), f"batch scored {len(batch['results'])} of {TICKET_COUNT} seed tickets"
+    assert len(batch["results"]) == TICKET_COUNT, (
+        f"batch scored {len(batch['results'])} of {TICKET_COUNT} seed tickets"
+    )
     assert batch["summary"]["total_tickets"] == TICKET_COUNT, batch["summary"]
     seed_refs = {result["seed_ref"] for result in batch["results"]}
     assert len(seed_refs) == TICKET_COUNT, seed_refs
@@ -190,9 +190,9 @@ def test_g5_4_eval_runs_are_hidden_from_the_default_run_history(
 ) -> None:
     response = phase5_client.request("GET", "/api/runs", token=batch_tenant.admin)
     assert response.status == 200, detail(response)
-    assert all(
-        run["eval_batch_id"] is None for run in response.body["runs"]
-    ), response.body
+    assert all(run["eval_batch_id"] is None for run in response.body["runs"]), (
+        response.body
+    )
 
 
 def test_g5_4_a_normal_run_still_pauses(

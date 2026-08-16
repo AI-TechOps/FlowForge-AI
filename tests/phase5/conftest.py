@@ -115,9 +115,9 @@ class Phase5Client:
         assert response.status in {200, 201}, detail(response)
         assert isinstance(response.body, dict), detail(response)
         token = response.body.get("access_token")
-        assert (
-            isinstance(token, str) and token
-        ), f"dev issuer returned no token: {response.body!r}"
+        assert isinstance(token, str) and token, (
+            f"dev issuer returned no token: {response.body!r}"
+        )
         return token
 
     def upload_markdown(self, token: str, *, title: str, body: str) -> ApiResponse:

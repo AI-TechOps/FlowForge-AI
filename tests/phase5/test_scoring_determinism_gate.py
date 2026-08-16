@@ -176,9 +176,9 @@ def test_g5_1_scoring_module_does_no_io() -> None:
         getattr(value, "__module__", "") for value in vars(scoring).values()
     }
     leaked = {name for name in forbidden if any(name == entry for entry in imported)}
-    assert (
-        not leaked
-    ), f"the deterministic scorer imports a source of variance: {leaked}"
+    assert not leaked, (
+        f"the deterministic scorer imports a source of variance: {leaked}"
+    )
 
 
 # The live half of G5.1 — that a *recorded* batch re-scores to the summary it

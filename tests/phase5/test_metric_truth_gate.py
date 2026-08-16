@@ -234,9 +234,9 @@ def summary(phase5_client: Phase5Client, metrics_tenant: Tenant) -> dict[str, An
 def test_g5_3_each_metric_matches_the_hand_computed_value(
     summary: dict[str, Any], metric: str
 ) -> None:
-    assert (
-        summary[metric] == pytest.approx(EXPECTED[metric], abs=1e-6)
-    ), f"{metric} is {summary[metric]!r}, hand-computed {EXPECTED[metric]!r}; full={summary!r}"
+    assert summary[metric] == pytest.approx(EXPECTED[metric], abs=1e-6), (
+        f"{metric} is {summary[metric]!r}, hand-computed {EXPECTED[metric]!r}; full={summary!r}"
+    )
 
 
 def test_g5_3_every_mvp_dashboard_metric_is_present() -> None:
@@ -272,9 +272,9 @@ def test_g5_3_the_time_window_actually_filters(
         "GET", "/api/metrics/summary?window_days=365", token=metrics_tenant.admin
     )
     assert wide.status == 200, detail(wide)
-    assert (
-        wide.body["total_runs"] == EXPECTED["total_runs"] + 1
-    ), "a 200-day-old run is missing from a 365-day window; the window is not being applied"
+    assert wide.body["total_runs"] == EXPECTED["total_runs"] + 1, (
+        "a 200-day-old run is missing from a 365-day window; the window is not being applied"
+    )
 
 
 def test_g5_3_empty_denominators_report_none_rather_than_zero(

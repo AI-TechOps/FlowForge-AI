@@ -1,0 +1,155 @@
+/**
+ * Design tokens (D21 decisions 8-11).
+ *
+ * The one rule this file exists to enforce: **no component names a colour.**
+ * Components reference `var(--panel)`, never `#14171D`. That is what makes two
+ * themes cost one stylesheet instead of two, and it is the discipline that
+ * keeps a hand-written system from sprawling once it meets ten screens.
+ *
+ * Dark is the default and lives on `:root`, so a page renders correctly before
+ * any JavaScript decides otherwise — no flash of the wrong theme. Light is an
+ * override under `[data-theme="light"]`, set on <html> by the theme module.
+ *
+ * The palette is near-monochrome with one accent. Colour is reserved for
+ * meaning: a green badge means completed, an amber one means a human is
+ * waiting, red means it failed. If everything is coloured, nothing is.
+ */
+
+@font-face {
+  font-family: "Inter";
+  src: url("/fonts/inter-400.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  /* swap, never block: a font that fails to load should cost us glyph
+     substitution for a frame, not a blank screen. */
+  font-display: swap;
+}
+@font-face {
+  font-family: "Inter";
+  src: url("/fonts/inter-500.woff2") format("woff2");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Inter";
+  src: url("/fonts/inter-600.woff2") format("woff2");
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("/fonts/jetbrains-mono-400.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("/fonts/jetbrains-mono-500.woff2") format("woff2");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  /* ---- surfaces (dark, the default) ---------------------------------- */
+  --bg: #0b0d11;
+  --panel: #14171d;
+  --panel-2: #191d25;
+  --panel-hover: #1c212a;
+  --border: #232833;
+  --border-strong: #2f3644;
+
+  /* ---- text ---------------------------------------------------------- */
+  --text: #e6e8eb;
+  --text-muted: #8b929e;
+  --text-faint: #666d7a;
+
+  /* ---- accent -------------------------------------------------------- */
+  --accent: #5b8def;
+  --accent-hover: #7aa2f2;
+  --accent-quiet: rgb(91 141 239 / 14%);
+  --accent-contrast: #ffffff;
+
+  /* ---- status -------------------------------------------------------- */
+  --ok: #2fa84f;
+  --ok-quiet: rgb(47 168 79 / 15%);
+  --warn: #d9a441;
+  --warn-quiet: rgb(217 164 65 / 15%);
+  --err: #e5534b;
+  --err-quiet: rgb(229 83 75 / 15%);
+  --info: #58a6ff;
+  --info-quiet: rgb(88 166 255 / 14%);
+  --neutral-quiet: rgb(139 146 158 / 14%);
+
+  /* ---- typography ---------------------------------------------------- */
+  --font-ui: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --fs-xs: 0.75rem;
+  --fs-sm: 0.8125rem;
+  --fs-md: 0.875rem;
+  --fs-lg: 1rem;
+  --fs-xl: 1.25rem;
+  --fs-2xl: 1.75rem;
+  --fs-metric: 1.875rem;
+
+  /* ---- spacing: a 4px scale, so vertical rhythm is arithmetic --------- */
+  --sp-1: 0.25rem;
+  --sp-2: 0.5rem;
+  --sp-3: 0.75rem;
+  --sp-4: 1rem;
+  --sp-5: 1.25rem;
+  --sp-6: 1.5rem;
+  --sp-8: 2rem;
+  --sp-10: 2.5rem;
+  --sp-12: 3rem;
+
+  /* ---- geometry ------------------------------------------------------ */
+  --radius-sm: 4px;
+  --radius: 6px;
+  --radius-lg: 10px;
+  --row-h: 34px; /* compact density (D21 decision 11) */
+  --sidebar-w: 232px;
+  --topbar-h: 52px;
+  --content-max: 1440px;
+
+  /* ---- elevation: hairlines, not shadows ----------------------------- */
+  --shadow-pop: 0 8px 24px rgb(0 0 0 / 45%);
+  --focus-ring: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent);
+
+  color-scheme: dark;
+}
+
+[data-theme="light"] {
+  --bg: #ffffff;
+  --panel: #f7f8fa;
+  --panel-2: #f1f3f6;
+  --panel-hover: #eceff3;
+  --border: #e3e6eb;
+  --border-strong: #cfd4dc;
+
+  --text: #12151a;
+  --text-muted: #5c6470;
+  --text-faint: #838b97;
+
+  --accent: #2563eb;
+  --accent-hover: #1d4ed8;
+  --accent-quiet: rgb(37 99 235 / 10%);
+  --accent-contrast: #ffffff;
+
+  --ok: #157f3d;
+  --ok-quiet: rgb(21 127 61 / 12%);
+  --warn: #a76a00;
+  --warn-quiet: rgb(167 106 0 / 13%);
+  --err: #c7362c;
+  --err-quiet: rgb(199 54 44 / 12%);
+  --info: #1f6feb;
+  --info-quiet: rgb(31 111 235 / 10%);
+  --neutral-quiet: rgb(92 100 112 / 12%);
+
+  --shadow-pop: 0 8px 24px rgb(16 24 40 / 12%);
+
+  color-scheme: light;
+}

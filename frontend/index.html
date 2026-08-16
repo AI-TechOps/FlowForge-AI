@@ -3,7 +3,53 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>FlowForge-AI</title>
+    <title>FlowForge</title>
+    <meta
+      name="description"
+      content="AI triage for internal support, with a human on every write."
+    />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+
+    <!--
+      Theme before paint. The stylesheet defaults to dark on :root, so only a
+      stored *light* choice needs applying here — and it must happen before the
+      first frame, or a light-theme user sees a dark flash on every load.
+      Duplicates two lines of src/theme.ts on purpose: the module cannot run
+      early enough.
+
+      The OS `prefers-color-scheme` is intentionally ignored — see the comment
+      in src/theme.ts. Dark is the default until someone chooses otherwise.
+    -->
+    <script>
+      (function () {
+        try {
+          if (localStorage.getItem("flowforge.theme") === "light") {
+            document.documentElement.setAttribute("data-theme", "light");
+          }
+        } catch (e) {
+          /* private mode: dark is a fine default */
+        }
+      })();
+    </script>
+
+    <!--
+      Preloaded because these two are used above the fold on every screen; the
+      remaining weights load normally.
+    -->
+    <link
+      rel="preload"
+      href="/fonts/inter-400.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
+    <link
+      rel="preload"
+      href="/fonts/inter-500.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
   </head>
   <body>
     <div id="root"></div>

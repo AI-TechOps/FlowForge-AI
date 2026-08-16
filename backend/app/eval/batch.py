@@ -258,40 +258,63 @@ async def score_batch(ctx: dict[str, Any], batch_id: str, org_id: str) -> str:
             logger.exception("eval batch %s cannot be scored", batch_id)
             return "missing_labels"
 
-        while True:
-            runs = (
-                (
-                    await session.execute(
-                        select(Run).where(Run.eval_batch_id == batch_uuid, Run.org_id == org_uuid)
+        try:
+            while True:
+                runs = (
+                    (
+                        await session.execute(
+                            select(Run)
+                            .where(Run.eval_batch_id == batch_uuid, Run.org_id == org_uuid)
+                            # Overwrite the identity map's copies instead of
+                            # serving rows the worker has since updated. NOT
+                            # `session.expire_all()`, which also expires the
+                            # batch — and reading an expired attribute of it
+                            # afterwards is a synchronous lazy load, which on
+                            # asyncpg raises MissingGreenlet and leaves the
+                            # batch stuck in `running` forever.
+                            .execution_options(populate_existing=True)
+                        )
                     )
+                    .scalars()
+                    .all()
                 )
-                .scalars()
-                .all()
-            )
-            unsettled = [r for r in runs if r.status not in SETTLED]
-            if not unsettled or datetime.now(UTC).timestamp() > deadline:
-                break
-            # Expire so the next iteration re-reads rather than serving the
-            # identity map's stale copies of rows the worker is updating.
-            session.expire_all()
-            await asyncio.sleep(2)
+                unsettled = [r for r in runs if r.status not in SETTLED]
+                if not unsettled or datetime.now(UTC).timestamp() > deadline:
+                    break
+                await asyncio.sleep(2)
 
-        for run in runs:
-            ticket = await get_scoped(session, Ticket, run.ticket_id, org_uuid)
-            if ticket is None:
-                continue
-            label = labels.get(ticket.external_ref or "")
-            if label is None:
-                continue
-            # Scoped rather than bound: scoring walks many runs in one job, and
-            # the batch-level lines after this loop belong to the batch, not to
-            # whichever run happened to be scored last.
-            with run_context(str(run.id), org_id):
-                await score_run(session, batch, ticket, run, label)
-        await session.commit()
+            for run in runs:
+                ticket = await get_scoped(session, Ticket, run.ticket_id, org_uuid)
+                if ticket is None:
+                    continue
+                label = labels.get(ticket.external_ref or "")
+                if label is None:
+                    continue
+                # Scoped rather than bound: scoring walks many runs in one job,
+                # and the batch-level lines after this loop belong to the batch,
+                # not to whichever run happened to be scored last.
+                with run_context(str(run.id), org_id):
+                    await score_run(session, batch, ticket, run, label)
+            await session.commit()
 
-        summary = await finalize_batch(session, batch)
-        return str(summary.get("accuracy_overall"))
+            summary = await finalize_batch(session, batch)
+            return str(summary.get("accuracy_overall"))
+        except Exception:  # noqa: BLE001 - a batch must always reach a terminal state
+            # G5.4 asks for a batch that completes even when things go wrong.
+            # An unhandled error here used to leave `running` on the row
+            # forever, which is indistinguishable from a batch still working —
+            # so a reader cannot tell a slow eval from a broken one.
+            logger.exception("eval batch %s failed while scoring", batch_id)
+            await session.rollback()
+            # Re-read: after a rollback the loaded instance is expired, and
+            # touching an expired attribute is the very lazy load that brought
+            # us here.
+            batch = await get_scoped(session, EvalBatch, batch_uuid, org_uuid)
+            if batch is not None:
+                batch.status = BatchStatus.failed
+                batch.finished_at = datetime.now(UTC)
+                await session.commit()
+            return "failed"
 
 
 def new_batch(org_id: uuid.UUID, total: int) -> EvalBatch:

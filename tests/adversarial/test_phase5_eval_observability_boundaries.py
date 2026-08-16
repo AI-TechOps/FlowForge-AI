@@ -437,6 +437,22 @@ def test_phase5_run_jobs_are_not_published_before_their_rows_commit(
     )
 
 
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "Finding 8, accepted by the code owners and left open rather than closed "
+        "(D20, and the 'Every row is triage-v1' section in eval/baseline.md). The "
+        "finding is correct: the committed table shows repeatability, not "
+        "comparability. It is not closable by a code change — Phase 5 built the "
+        "harness that measures prompts and changed no prompt, so AGENT_VERSION "
+        "never moved and there is no second version to record. The only way to "
+        "make this pass today is to relabel one of three identical runs "
+        "'triage-v2', which would put a fabricated comparison in the one document "
+        "whose value is that its numbers were not fitted. Strict, so the day a "
+        "real prompt change lands a genuine second-version batch this flips to an "
+        "unexpected pass and forces the marker off."
+    ),
+)
 def test_phase5_regression_table_contains_distinct_agent_versions(
     repository_root: Path,
 ) -> None:

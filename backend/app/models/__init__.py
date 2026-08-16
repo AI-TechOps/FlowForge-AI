@@ -7,6 +7,7 @@ from app.models.approval import (
 )
 from app.models.base import Base, TenantBase
 from app.models.document import Chunk, Document, DocumentStatus
+from app.models.evaluation import BatchStatus, EvalBatch, EvalResult
 from app.models.org import Organization
 from app.models.run import AuditLog, FailureReason, Run, RunStatus
 from app.models.ticket import Ticket, TicketStatus
@@ -19,9 +20,12 @@ __all__ = [
     "ApprovalStatus",
     "AuditLog",
     "Chunk",
+    "BatchStatus",
     "Decision",
     "Document",
     "DocumentStatus",
+    "EvalBatch",
+    "EvalResult",
     "FailureReason",
     "Organization",
     "RiskClass",

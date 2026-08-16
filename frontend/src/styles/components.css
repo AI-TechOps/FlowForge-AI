@@ -1015,14 +1015,20 @@
 /* Misc                                                                    */
 /* ====================================================================== */
 
+/* Block, not flex. As a flex container an inline <strong> inside a sentence
+   became its own column, so "Only an **Approver** may decide" rendered as
+   three stacked fragments. Banners hold prose; prose should flow. */
 .banner {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--sp-3);
+  display: block;
   padding: var(--sp-3) var(--sp-4);
   border-radius: var(--radius);
   border: 1px solid var(--border);
   font-size: var(--fs-md);
+  line-height: 1.55;
+}
+
+.banner > * + * {
+  margin-top: var(--sp-2);
 }
 
 .banner--err {

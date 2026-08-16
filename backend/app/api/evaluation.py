@@ -142,11 +142,22 @@ async def get_batch(
     if batch is None:
         raise HTTPException(status_code=404, detail="eval batch not found")
 
+    # Scoped on org as well as batch, not only on the foreign key. `batch_id`
+    # and `org_id` are independent columns, so a result row carrying another
+    # tenant's org_id can point at this batch — and the scoped batch lookup
+    # above says nothing about the rows hanging off it. Codex's probe inserted
+    # exactly that pair and read back the neighbour's answer key and model
+    # output through an org-A administrator (Phase 5 finding 1).
+    #
+    # Application-level filtering is the MVP rule (D7). The structural fix — a
+    # composite foreign key onto `eval_batches(id, org_id)` so the inconsistent
+    # pair cannot be written at all — belongs with RLS in the production
+    # hardening step, where changing every tenant table's keys is one job.
     results = (
         (
             await session.execute(
                 select(EvalResult)
-                .where(EvalResult.batch_id == batch.id)
+                .where(EvalResult.batch_id == batch.id, EvalResult.org_id == principal.org_id)
                 .order_by(EvalResult.seed_ref)
             )
         )

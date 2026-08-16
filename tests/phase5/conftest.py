@@ -228,7 +228,12 @@ def new_tenant(client: Phase5Client, database_url: str) -> Tenant:
     # First call binds each subject through the ordinary first-login path.
     for role, token in tokens.items():
         me = client.request("GET", "/api/me", token=token)
-        assert me.status == 200, f"{role} could not authenticate: {detail(me)}"
+        assert me.status == 200, (
+            f"{role} could not authenticate: {detail(me)}. A 403 here usually "
+            f"means PHASE5_DATABASE_URL ({database_url.rsplit('/', 1)[-1]}) is a "
+            f"different database from the one {client.base_url} is reading: the "
+            "user was seeded somewhere the stack cannot see it."
+        )
     return Tenant(org_id=org_id, tokens=tokens)
 
 
@@ -333,10 +338,19 @@ def phase5_client() -> Phase5Client:
 
 @pytest.fixture(scope="session")
 def phase5_database_url() -> str:
-    for name in ("PHASE5_DATABASE_URL", "DATABASE_URL"):
-        value = os.environ.get(name)
-        if value:
-            return value
+    """The database the live gates seed into.
+
+    Deliberately NOT falling back to `DATABASE_URL`, which the Phase 4 suite
+    also avoids. `DATABASE_URL` is whatever the *test process* is configured
+    with — in the fast CI job that is an empty scratch database — while these
+    gates need the database the running stack reads. When the two differ the
+    symptom is a seeded user the API cannot find, which reads as an auth bug and
+    is not one. Requiring the explicit variable makes the fast job skip cleanly
+    instead.
+    """
+    value = os.environ.get("PHASE5_DATABASE_URL")
+    if value:
+        return value
     message = "PHASE5_DATABASE_URL is required to seed an isolated gate tenant"
     pytest.fail(message) if truthy("PHASE5_REQUIRE_LIVE") else pytest.skip(message)
     raise AssertionError("unreachable")

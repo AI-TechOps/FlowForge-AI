@@ -319,6 +319,13 @@ write — not because a boolean is false, but because there is no node to reach
 (D19 decision 2). `runs.eval_batch_id` is the single marker, set only by
 `POST /api/eval/run`.
 
+The same marker keeps the shared finalizer off the seed ticket: a real run
+moves its ticket `new → triaged` on completion, an eval run leaves it exactly
+as it found it. Topology only governs what the graph does, and the seed set is
+the fixed input the regression table is measured against — a batch that
+mutated its own subjects would mean batch two ran against different tickets
+than batch one.
+
 **What is scored.** Deterministically, in code: `category`, `urgency` and
 `recommended_team` against the fixture labels, plus grounded-rate and hit@k.
 `suggested_priority` is deliberately unscored — the fixture carries no priority
@@ -332,12 +339,17 @@ mounted read-only into the backend and worker (`EVAL_LABELS_PATH`); the loader
 puts tickets in Postgres and leaves the labels out, so the eval knows the
 answers and the pipeline never does.
 
-**Metrics are role-sliced.** Every persona sees run counts, latency, tool
-success, approval/edit/rejection rates, retrieval success and pending
-approvals. Cost, evaluation accuracy and tokens-per-run are administrator-only
-(D19 decision 6) and are *absent* rather than zeroed — an absent key is a fact
-a dashboard can render, a zero is a lie somebody can act on. Every rate is
-`null`, never `0.0`, when its denominator is empty.
+**Metrics are role-sliced.** Every persona sees run counts, latency, tokens per
+run, tool success, approval/edit/rejection rates, retrieval success and pending
+approvals. Cost and evaluation accuracy are administrator-only (D19 decision 6)
+and are *absent* rather than zeroed — an absent key is a fact a dashboard can
+render, a zero is a lie somebody can act on. Every rate is `null`, never `0.0`,
+when its denominator is empty.
+
+**The whole summary honours `window_days`,** including the eval figures. A
+window with no batch in it reports `null` accuracy rather than reaching further
+back for a number — quietly serving a stale batch is how a dashboard reports
+accuracy for a prompt that is no longer deployed.
 
 **Cost is an estimate with a date on it.** The per-model pricing table lives in
 `app/llm/cost.py` with an as-of date (D19 decision 7); Ollama is $0. Estimates

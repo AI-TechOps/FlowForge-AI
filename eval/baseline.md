@@ -46,6 +46,22 @@ models are deterministic in general — different hardware, a re-pulled model ta
 or a re-ingested corpus can all move it, and a row that changes without a code
 change means one of those changed.
 
+### Every row is `triage-v1`, and that is a real gap (open)
+
+Codex's Phase 5 adversarial pass flagged this as finding 8, and it is correct:
+G5.5 asks for two batches at **different** `agent_version`s, and this table has
+one version repeated. The mechanism is proven — metric keys are identical by
+construction, and the G5.5 gate renders two versions side by side — but the
+committed artifact demonstrates repeatability, not comparability.
+
+It stays that way on purpose. Phase 5 built the harness that measures prompts;
+it did not change one, so `AGENT_VERSION` never moved. The honest fix is a real
+prompt change with a batch either side of it, which is Phase 6/7 work. The
+dishonest fix is to relabel one of these three identical runs `triage-v2`, and
+that would put a fabricated comparison in the one document whose entire value
+is that its numbers were not fitted to anything. Tracked as an open item in
+DECISIONS.md rather than closed by a label.
+
 ### G5.2 canary (real judge, 2026-08-16)
 
 The judge must rank a deliberately-wrong resolution below a correct one, which

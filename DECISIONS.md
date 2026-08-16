@@ -221,14 +221,63 @@ Phase 4 is built and merged (PR #10). G4.1–G4.6 pass, all eleven findings acro
 3. **G5.2's canary pair is a real-model gate, opt-in, like G2.4.** A deliberately-wrong resolution must score below a correct one, which requires actual semantics; the fake provider is deterministic and semantically blind. CI asserts what a fake honestly can — rubric-schema validation and the judge≠triage config check. Building a "judge mode" into the fake was rejected as the exact fiction D18 decision 1 exists to prevent: it would look like proof of judgement while proving only wiring.
 4. **A batch runs as background jobs and is scored as runs settle.** `POST /api/eval/run` returns a batch id immediately; the runs go through the existing arq path, so eval exercises the real execution machinery rather than a parallel one. G5.4 (a batch completes even when individual runs fail) falls out of this rather than needing special handling. A synchronous endpoint would hold an HTTP connection for minutes and let one hung run kill the batch.
 5. **Deterministic scoring covers the three fields the fixture actually labels** — category, urgency, recommended_team. The spec listed `suggested_priority`, but no such label exists in `fixtures/eval_tickets.json`; inventing twenty priority labels now would add an unreviewed answer key to one that is *already* unreviewed (G1.5). The spec is amended to match the fixture rather than the fixture bent to match the spec.
-6. **Cost and evaluation accuracy are administrator-only** in `GET /api/metrics/summary`; every authenticated role sees run counts, latency, approval/edit/rejection rates and the pending-approval count. Spend and model-accuracy are oversight figures, and the personas doc gives oversight to the Administrator.
+6. **Cost and evaluation accuracy are administrator-only** in `GET /api/metrics/summary`; every authenticated role sees run counts, latency, approval/edit/rejection rates and the pending-approval count. Spend and model-accuracy are oversight figures, and the personas doc gives oversight to the Administrator. *(Amended 2026-08-16, D20 finding 6: this list is exactly two metrics. Tokens per run reads like a spend figure and is not one — spec 06 §3 names it among what every role sees, and the implementation had quietly added it to the restricted set.)*
 7. **The pricing table stays versioned in code**, in `app/llm/cost.py`, with an as-of date and Ollama at zero. Config-file pricing was rejected because an unset table silently reports $0 — and the cost figure is the one most likely to be quoted in a demo, so it should be the one most visible in review.
 
 The 16-task plan lives in `specs/06-phase5-eval-observability.md`; tasks 2 and 16 are Codex's.
 
 ---
 
+## D20 — Phase 5 adversarial round (2026-08-16)
+
+Codex's task-16 pass (`reviews/phase5-adversarial-diff-review.md`) reported eight
+findings and shipped a failing probe for each. Seven were real and are fixed;
+the eighth is a genuine gap that a code change cannot honestly close.
+
+The pattern from Phases 3 and 4 held again: **not one finding was on the happy
+path.** Every one lived in a failure path, under concurrency, in a role other
+than the one we tested by hand, or in a corpus that did not match its labels.
+
+1. **Cross-tenant eval result** — the batch lookup was scoped, the result query
+   hanging off it was not, so a result row carrying another org's `org_id` could
+   be read through a scoped batch. Fixed with an application-level filter (D7).
+   The structural fix is a composite FK onto `eval_batches(id, org_id)`, which
+   is deferred to the RLS pass rather than done for one table alone.
+2. **Jobs published before their rows committed** — the only producer in the
+   codebase that enqueued inside its transaction. Combined with deterministic
+   job ids this could strand a run permanently: the worker sees no row, arq
+   stores "missing" under that id, and the reconciler's retry is deduplicated
+   against it. Now commits first, like `documents.py` and `runs.py` always did.
+3. **Unlabelled seeds silently dropped** — `total_tickets` reported the filtered
+   count, so G5.4's "100% of the seed set" could be 100% of a subset nobody
+   chose. The failure hid inside the number meant to detect it. Now a 409
+   naming the offending refs.
+4. **Eval runs mutated their seed tickets** — D19 decision 2 buys "eval writes
+   nothing" through graph topology, but the *finalizer* is shared with real runs
+   and was moving every seed `new → triaged`. A property enforced by topology
+   still has to hold in the lifecycle code that topology does not cover.
+5. **Same-family judge accepted** — the D5/D19.1 check compared whole model
+   names, so `llama3.1:8b` could be judged by `llama3.1:70b`: same weights
+   lineage, same blind spots. Now compares model family (name minus `:tag` and
+   provider prefix). A heuristic that errs toward refusing; the canary remains
+   the thing that actually measures judgement.
+6. **Tokens withheld from operators** — see the amendment on decision 6 above.
+   The G5.3 gate asserted the same mistake, so the gate ratified the defect
+   instead of catching it. Corrected on Codex's explicit instruction in the
+   review; noted because editing a Codex-owned gate is otherwise out of lane.
+7. **`window_days` governed only part of its own response** — the latest-batch
+   query had no time predicate, so a 200-day-old batch supplied "current"
+   accuracy to a 30-day request. Windowed now; an empty window reports `null`.
+8. **The regression table has only one `agent_version`** — open, see below.
+   Phase 5 changed no prompt, so there is no honest second version to record.
+   Manufacturing one by relabelling a duplicate run is precisely the fitting
+   `eval/baseline.md` exists to refuse.
+
+---
+
 ## Open items (as of 2026-08-16)
+
+- **G5.5's checked-in artifact has one `agent_version`, and no code change fixes that** (D20 finding 8). The property G5.5 asks for is comparability, and the mechanism is proven: metric keys are identical by construction, and the API gate displays two versions side by side. What the *committed table* cannot yet show is two real versions, because `AGENT_VERSION` is still `triage-v1` — Phase 5 built an eval harness and changed no prompt. The three real-model rows differ in nothing because nothing differed. Closing this honestly requires a genuine prompt change with a batch on each side of it, which is Phase 6/7 work; closing it by bumping a version label on an identical run would put a fabricated comparison in the one document whose value is that its numbers were not fitted. Recorded as open rather than papered over.
 
 - **G1.5 is now blocking, not just overdue.** Phase 5 scores the agent against these labels and writes the result into a regression table that later phases compare against; an unreviewed answer key becomes a permanent baseline the moment a batch is recorded. Original note:
 - **G1.5 (Phase 1) is now on the critical path.** `fixtures/eval_tickets.json`, `fixtures/retrieval_checks.json`, and `fixtures/enterprise/taxonomy.json` still carry `review_status: draft_pending_code_owner_review`. G2.4 cleared its bar by a small margin against labels nobody has signed off, and Phase 5's formal eval inherits the same answer key. **EVAL-012 and EVAL-019 were mis-categorised identically in two independent runs** — either a consistent model blind spot or two wrong labels, and they are the first worth a human look.
@@ -237,7 +286,7 @@ The 16-task plan lives in `specs/06-phase5-eval-observability.md`; tasks 2 and 1
 - ~~**Phase 4 spec review**~~ **Resolved** as D18 above.
 - ~~**Build Phase 4**~~ merged as PR #10; all four CI jobs green on `ab56e56`.
 - ~~**Phase 5 spec review**~~ **Resolved** as D19 above.
-- **Build Phase 5** on `feat/phase5-eval-observability`: tasks 1, 3–15 (Claude), 2 and 16 (Codex). **Tasks 1–15 done**; task 16 (adversarial pass + cold diff review) remains Codex's. Task 2 was written by Claude rather than Codex, like Phase 4's task 13: the gates needed the eval contract that tasks 3 and 5 define, and they landed in the same pass. That is a deviation from the D6 lane and is recorded rather than glossed — a Codex round on `tests/phase5` is still worth having in task 16.
+- ~~**Build Phase 5**~~ on `feat/phase5-eval-observability`: tasks 1, 3–15 (Claude), 2 and 16 (Codex). **All 16 done** — task 16 landed as `reviews/phase5-adversarial-diff-review.md` plus eight probes; seven findings fixed, the eighth recorded as open above (D20). Task 2 was written by Claude rather than Codex, like Phase 4's task 13: the gates needed the eval contract that tasks 3 and 5 define, and they landed in the same pass. That is a deviation from the D6 lane and is recorded rather than glossed — a Codex round on `tests/phase5` is still worth having in task 16.
 - **Three defects Phase 5's own gates found in Phase 5's code**, each fixed in its own commit: the scorer expired the batch row between polls and died on the next attribute read (`MissingGreenlet`, batch stuck in `running` forever); `tool_success_rate` filtered on a tool name that does not exist, so every model call and lifecycle record sat in its denominator; and the answer key was resolved relative to the repository, which is not a path that exists inside the image (`fixtures/` is outside the backend build context by D6, so `POST /api/eval/run` 500ed on any containerised stack). The last is now `EVAL_LABELS_PATH` plus a read-only mount — the labels still never enter the database, which is what keeps them unreadable to the agent.
 - **Two arm64 wheels SIGILL on import** and are pinned around in `backend/pyproject.toml`: hiredis 3.4.1 and cryptography 47+. Both take the containers down with exit 132 and no log line, which is a memorable half hour if it is not written down.
 - ~~**Build Phase 4**~~ **Done** (tasks 1–15). Task 13 was reassigned from Codex to Claude mid-phase: the retrofit is harness-only and no assertion changed, and leaving the Phase 0–3 suites red would have blocked the phase on a second Codex round-trip. Task 16 (adversarial pass + cold review) remains Codex's.

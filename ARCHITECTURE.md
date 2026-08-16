@@ -168,7 +168,9 @@ Ingestion runs as a **background job** (Redis queue) — uploads return immediat
 that selects the eval graph. Deliberately one column rather than a separate
 `is_eval` boolean: two markers can disagree, and the asymmetry makes a single
 marker safe — a run wrongly marked eval degrades to "proposes and stops", never
-to "writes without approval", because the eval graph has no execute node.
+to "writes without approval", because the eval graph has no execute node. The
+same column also gates the shared finalizer's `new → triaged` ticket write, so
+"eval writes nothing back" holds in lifecycle code as well as in topology.
 
 Ticket status lifecycle: `new → triaged → actioned` (plus `closed`).
 

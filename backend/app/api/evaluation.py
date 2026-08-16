@@ -69,6 +69,30 @@ async def start_eval_batch(
             ),
         )
 
+    # A seed with no label is a broken corpus, and quietly dropping it is the
+    # worst of the three options. `total_tickets` is what G5.4's "100% of the
+    # seed set" is measured against, so a filtered denominator lets a batch
+    # report full coverage of a subset nobody chose — the failure hides inside
+    # the number that exists to detect it (Codex Phase 5 finding 3).
+    #
+    # Refused rather than scored-as-failed: there is no answer key to score
+    # against, so a result row would be an opinion about a ticket the fixture
+    # never rated. The usual cause is a half-loaded fixture, and naming the
+    # refs says which half.
+    unlabelled = sorted(
+        t.external_ref or str(t.id) for t in tickets if (t.external_ref or "") not in labels
+    )
+    if unlabelled:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"{len(unlabelled)} eval seed ticket(s) have no entry in the answer key: "
+                f"{', '.join(unlabelled[:10])}"
+                f"{'…' if len(unlabelled) > 10 else ''}. Re-run scripts/load_eval_tickets.py "
+                "so the seed set and the labels agree, or clear the stale seeds."
+            ),
+        )
+
     batch = new_batch(org_id, len(scoreable))
     session.add(batch)
     await session.flush()

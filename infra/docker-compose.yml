@@ -46,7 +46,13 @@ services:
       AUTH0_AUDIENCE: ${AUTH0_AUDIENCE:-flowforge-api}
       AUTH0_CLIENT_ID: ${AUTH0_CLIENT_ID:-}
       TRIAGE_MODEL: ${TRIAGE_MODEL:-llama3.1:8b}
+      # The eval judge (D19 decision 1). Settings refuse a judge equal to
+      # TRIAGE_MODEL, so overriding one without the other fails at startup
+      # rather than producing a batch that graded its own output.
+      JUDGE_MODEL: ${JUDGE_MODEL:-qwen2.5:7b}
       FAKE_LLM_MODE: ${FAKE_LLM_MODE:-valid}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      LOG_FORMAT: ${LOG_FORMAT:-json}
       UPLOAD_DIR: /data/uploads
     volumes:
       - uploads:/data/uploads
@@ -80,7 +86,13 @@ services:
       AUTH0_AUDIENCE: ${AUTH0_AUDIENCE:-flowforge-api}
       AUTH0_CLIENT_ID: ${AUTH0_CLIENT_ID:-}
       TRIAGE_MODEL: ${TRIAGE_MODEL:-llama3.1:8b}
+      # The eval judge (D19 decision 1). Settings refuse a judge equal to
+      # TRIAGE_MODEL, so overriding one without the other fails at startup
+      # rather than producing a batch that graded its own output.
+      JUDGE_MODEL: ${JUDGE_MODEL:-qwen2.5:7b}
       FAKE_LLM_MODE: ${FAKE_LLM_MODE:-valid}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      LOG_FORMAT: ${LOG_FORMAT:-json}
       UPLOAD_DIR: /data/uploads
     volumes:
       - uploads:/data/uploads

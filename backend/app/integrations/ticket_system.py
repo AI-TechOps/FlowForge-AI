@@ -22,6 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
 from app.models import Ticket
+from app.tenancy import get_scoped
 
 # Per-ticket fault injection, mirroring the fake provider's directive
 # (Phase 2 finding: a process-wide env var cannot be varied by an HTTP-driven
@@ -197,10 +198,10 @@ class MockTicketSystem(TicketSystemAdapter):
         self.run_id = run_id
 
     async def _load(self, ticket_id: uuid.UUID, org_id: uuid.UUID) -> Ticket:
-        ticket = await self.session.get(Ticket, ticket_id)
         # Cross-org access is "not found", never "forbidden" — the adapter must
         # not confirm the existence of another tenant's ticket.
-        if ticket is None or ticket.org_id != org_id:
+        ticket = await get_scoped(self.session, Ticket, ticket_id, org_id)
+        if ticket is None:
             raise TicketNotFound(f"ticket {ticket_id} not found")
         await self._maybe_fail(ticket)
         return ticket

@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.agents import audit
 from app.models import Ticket
 from app.rag.retrieve import MAX_K, retrieve
+from app.tenancy import get_scoped
 
 ArgsT = TypeVar("ArgsT", bound=BaseModel)
 
@@ -145,10 +146,10 @@ class GetTicketArgs(BaseModel):
 
 
 async def _get_ticket(context: ToolContext, args: GetTicketArgs) -> dict[str, Any]:
-    ticket = await context.session.get(Ticket, args.ticket_id)
     # Cross-org reads fail as "not found" rather than "forbidden" so the tool
     # never confirms the existence of another tenant's ticket (G2.6).
-    if ticket is None or ticket.org_id != context.org_id:
+    ticket = await get_scoped(context.session, Ticket, args.ticket_id, context.org_id)
+    if ticket is None:
         raise ToolPermissionError(f"ticket {args.ticket_id} not found")
     return {
         "id": str(ticket.id),

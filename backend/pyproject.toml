@@ -10,18 +10,25 @@ dependencies = [
     "sqlalchemy[asyncio]>=2.0.36",
     "asyncpg>=0.30",
     "alembic>=1.14",
-    "redis>=5.2",
+    "redis>=5.2,<7",
     "pgvector>=0.3",
     "httpx>=0.28",
     "arq>=0.26",
     "python-multipart>=0.0.18",
     "pypdf>=5.1",
-    "langgraph>=1.0",
+    # Upper bounds because unpinned ranges have already bitten: a newer
+    # checkpoint-postgres shipped migration v6, whose setup() race surfaced as
+    # seven unrelated Phase 2 gate failures, and unpinned ARM wheels for redis
+    # and pyjwt resolved to builds that SIGILL on import.
+    "langgraph>=1.0,<2",
     # Requires psycopg3 while the app runs on asyncpg (D16 decision 5):
     # two drivers, deliberately — the checkpointer is not the place for a
     # bespoke persistence layer.
-    "langgraph-checkpoint-postgres>=3.0",
+    "langgraph-checkpoint-postgres>=3.0,<4",
     "psycopg[binary,pool]>=3.2",
+    # JWT verification (Phase 4). The [crypto] extra pulls in `cryptography`,
+    # which the local dev issuer also uses to generate its keypair.
+    "pyjwt[crypto]>=2.10,<3",
 ]
 
 [project.optional-dependencies]

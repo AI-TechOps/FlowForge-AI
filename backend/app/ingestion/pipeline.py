@@ -17,20 +17,29 @@ from app.ingestion.chunk import chunk_blocks
 from app.ingestion.extract import extract
 from app.llm.provider import get_provider
 from app.models import Chunk, Document, DocumentStatus
+from app.tenancy import get_scoped
 
 logger = logging.getLogger(__name__)
 
 EMBED_BATCH_SIZE = 32
 
 
-async def ingest_document(ctx: dict[str, Any], document_id: str, org_id: str) -> str:
-    """arq job entrypoint. Returns the final document status."""
+async def ingest_document(
+    ctx: dict[str, Any], document_id: str, org_id: str, actor_user_id: str | None = None
+) -> str:
+    """arq job entrypoint. Returns the final document status.
+
+    `actor_user_id` is the administrator who uploaded the document; it travels
+    with the job so the worker holds the same authority context the caller had
+    (spec 05 §4), and a re-ingest can be attributed.
+    """
+    del actor_user_id
     doc_uuid = uuid.UUID(document_id)
     org_uuid = uuid.UUID(org_id)
 
     async with async_session_factory() as session:
-        document = await session.get(Document, doc_uuid)
-        if document is None or document.org_id != org_uuid:
+        document = await get_scoped(session, Document, doc_uuid, org_uuid)
+        if document is None:
             logger.warning("ingest skipped: document %s not found in org %s", document_id, org_id)
             return "missing"
 

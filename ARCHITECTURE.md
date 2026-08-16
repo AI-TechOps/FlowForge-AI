@@ -181,7 +181,9 @@ checkpoint whenever the human decides. LangGraph owns its own checkpoint tables 
 - **Structured output:** every LLM decision validated against a Pydantic schema; raw model text is never trusted for routing.
 - **Write-tool contract:** org context, user context, typed args, permission check, idempotency key, timeout, audit record, retry policy, mock implementation, post-execution confirmation.
 - **Observability:** every run and every tool call logged (inputs, outputs, latency, tokens, cost).
-- **Provider abstraction:** only `backend/app/llm/provider.py` knows which LLM/embedding provider is active.
+- **Provider abstraction:** only `backend/app/llm/provider.py` knows which LLM/embedding provider is active, and only `backend/app/auth/provider.py` knows which identity provider is (D18 decision 1). In both cases the *verification/validation* path is shared across providers; only the source of the key or the completion differs.
+- **Authentication:** every `/api` route except `/api/health` requires a bearer token. `org_id` is derived from the authenticated principal — no header, query parameter, or body field can influence it (G4.5).
+- **Authorization:** roles come from `user_roles`, never from token claims, so a revoked role takes effect on the next request. The role matrix is expressed once as named dependencies in `backend/app/auth/principal.py`.
 
 ---
 
@@ -197,6 +199,8 @@ incident.
 | Tenant isolation | Application-level `org_id` filtering | Postgres RLS (D7, spec 05 §3) |
 | Audit payloads | Credential-bearing *keys* redacted | Value-level scanning of user-supplied text (spec 03 §1) |
 | Eval judge | Same provider family as triage | A genuinely different model (D5) |
+| Token storage (SPA) | `sessionStorage`, cleared on 401 | httpOnly cookie + backend session, which XSS cannot read |
+| Dead-lettered runs | Terminal, visible on the run detail page | An operator-facing requeue action |
 
 ### HNSW index on `chunks.embedding`
 

@@ -6,11 +6,12 @@ from fastapi import APIRouter, Depends, Form, HTTPException, UploadFile
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import current_org_id
+from app.auth.principal import ADMIN_ONLY, Principal
 from app.config import get_settings
 from app.db import get_session
 from app.ingestion.queue import enqueue_ingest
 from app.models import Chunk, Document, DocumentStatus
+from app.tenancy import get_scoped
 
 router = APIRouter()
 
@@ -35,8 +36,9 @@ async def upload_document(
     title: str | None = Form(default=None),
     version: str = Form(default="1"),
     session: AsyncSession = Depends(get_session),
-    org_id: uuid.UUID = Depends(current_org_id),
+    principal: Principal = ADMIN_ONLY,
 ) -> dict[str, str]:
+    org_id = principal.org_id
     settings = get_settings()
     filename = file.filename or "upload"
     extension = Path(filename).suffix.lower()
@@ -72,7 +74,7 @@ async def upload_document(
     document.file_ref = str(target_path)
     await session.commit()
 
-    await enqueue_ingest(document.id, org_id)
+    await enqueue_ingest(document.id, org_id, principal.user_id)
     return {"id": str(document.id), "status": DocumentStatus.pending.value}
 
 
@@ -80,28 +82,30 @@ async def upload_document(
 async def reingest_document(
     document_id: uuid.UUID,
     session: AsyncSession = Depends(get_session),
-    org_id: uuid.UUID = Depends(current_org_id),
+    principal: Principal = ADMIN_ONLY,
 ) -> dict[str, str]:
     """Re-run ingestion (recovers worker crashes / stuck `processing`).
 
     Safe to call in any status: the pipeline deletes and rewrites chunks.
     """
-    document = await session.get(Document, document_id)
-    if document is None or document.org_id != org_id:
+    org_id = principal.org_id
+    document = await get_scoped(session, Document, document_id, org_id)
+    if document is None:
         raise HTTPException(status_code=404, detail="document not found")
 
     document.status = DocumentStatus.pending
     document.error_message = None
     await session.commit()
-    await enqueue_ingest(document.id, org_id)
+    await enqueue_ingest(document.id, org_id, principal.user_id)
     return {"id": str(document.id), "status": DocumentStatus.pending.value}
 
 
 @router.get("/api/documents")
 async def list_documents(
     session: AsyncSession = Depends(get_session),
-    org_id: uuid.UUID = Depends(current_org_id),
+    principal: Principal = ADMIN_ONLY,
 ) -> list[dict[str, Any]]:
+    org_id = principal.org_id
     statement = (
         select(Document, func.count(Chunk.id))
         .outerjoin(Chunk, Chunk.document_id == Document.id)
@@ -117,10 +121,11 @@ async def list_documents(
 async def get_document(
     document_id: uuid.UUID,
     session: AsyncSession = Depends(get_session),
-    org_id: uuid.UUID = Depends(current_org_id),
+    principal: Principal = ADMIN_ONLY,
 ) -> dict[str, Any]:
-    document = await session.get(Document, document_id)
-    if document is None or document.org_id != org_id:
+    org_id = principal.org_id
+    document = await get_scoped(session, Document, document_id, org_id)
+    if document is None:
         raise HTTPException(status_code=404, detail="document not found")
     chunk_count = (
         await session.execute(select(func.count(Chunk.id)).where(Chunk.document_id == document.id))

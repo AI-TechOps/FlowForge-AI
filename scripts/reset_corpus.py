@@ -23,13 +23,33 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "backend"))
+sys.path.insert(0, str(REPO_ROOT / "scripts"))
 
 from app.db import async_session_factory, engine
 from app.models import Document, Organization
+from dev_token import auth_header
 from sqlalchemy import delete, select
 
 CORPUS_DIR = REPO_ROOT / "fixtures" / "enterprise"
 TERMINAL = {"ready", "failed"}
+DEFAULT_ADMIN_EMAIL = "admin@demo"
+
+# Administrator identity used for the HTTP half of the reset. Set once from
+# --admin-email; every request derives its token from this plus the target org.
+_admin_email = DEFAULT_ADMIN_EMAIL
+
+
+def _org_auth(base_url: str, org_id: uuid.UUID) -> dict[str, str]:
+    """Authenticate as an administrator *in the org being reset*.
+
+    The org id is part of the token request, not just of the database work.
+    Previously every upload used the default demo identity regardless of
+    --org-id, so pointing the script at another tenant deleted that tenant's
+    corpus from Postgres and then re-ingested the replacement documents into
+    the demo tenant — a destructive operation and a restore that disagreed
+    about who they were for (Codex Phase 4 finding 8).
+    """
+    return auth_header(base_url, _admin_email, str(org_id))
 
 
 async def _resolve_org(org_id: uuid.UUID | None) -> uuid.UUID:
@@ -77,7 +97,9 @@ def _upload(base_url: str, org_id: uuid.UUID, path: Path) -> str:
         method="POST",
         headers={
             "Content-Type": f"multipart/form-data; boundary={boundary}",
-            "X-Org-Id": str(org_id),
+            # Phase 4: the tenant is the token's, not the header's — so the
+            # token has to be for the org we are resetting.
+            **_org_auth(base_url, org_id),
         },
     )
     with urllib.request.urlopen(request, timeout=60) as response:
@@ -94,7 +116,7 @@ def _await_ingestion(
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         request = urllib.request.Request(
-            f"{base_url}/api/documents", headers={"X-Org-Id": str(org_id)}
+            f"{base_url}/api/documents", headers=_org_auth(base_url, org_id)
         )
         with urllib.request.urlopen(request, timeout=30) as response:
             documents = json.load(response)
@@ -104,13 +126,41 @@ def _await_ingestion(
     raise SystemExit("ingestion did not finish in time")
 
 
+def _verify_admin_org(base_url: str, org_id: uuid.UUID) -> None:
+    import json
+
+    request = urllib.request.Request(
+        f"{base_url}/api/me", headers=_org_auth(base_url, org_id)
+    )
+    with urllib.request.urlopen(request, timeout=30) as response:
+        identity = json.load(response)
+    if str(identity.get("org_id")) != str(org_id):
+        raise SystemExit(
+            f"{_admin_email} authenticates into org {identity.get('org_id')}, "
+            f"not {org_id}; refusing to wipe a corpus this token cannot restore"
+        )
+
+
 async def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--org-id", type=uuid.UUID, default=None)
     parser.add_argument("--base-url", default="http://localhost:8000")
+    parser.add_argument(
+        "--admin-email",
+        default=DEFAULT_ADMIN_EMAIL,
+        help="Administrator to act as. Must belong to --org-id.",
+    )
     arguments = parser.parse_args()
 
+    global _admin_email
+    _admin_email = arguments.admin_email
+
     org_id = await _resolve_org(arguments.org_id)
+    # Prove the identity matches the target BEFORE deleting anything. A wipe
+    # that succeeds followed by uploads into a different tenant is the worst
+    # possible ordering: the corpus is gone and the restore went elsewhere.
+    _verify_admin_org(arguments.base_url, org_id)
+
     removed = await _wipe(org_id)
     print(f"org {org_id}: deleted {removed} document(s)")
 

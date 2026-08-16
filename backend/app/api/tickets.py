@@ -6,9 +6,10 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import current_org_id
+from app.auth.principal import ANY_PERSONA, OPERATOR_WORK, Principal
 from app.db import get_session
 from app.models import Ticket, TicketStatus
+from app.tenancy import get_scoped
 
 router = APIRouter()
 
@@ -46,9 +47,12 @@ def ticket_payload(ticket: Ticket) -> dict[str, Any]:
 async def create_ticket(
     payload: TicketCreate,
     session: AsyncSession = Depends(get_session),
-    org_id: uuid.UUID = Depends(current_org_id),
+    principal: Principal = OPERATOR_WORK,
 ) -> dict[str, Any]:
-    ticket = Ticket(org_id=org_id, status=TicketStatus.new, **payload.model_dump())
+    # org_id comes from the token and nowhere else. TicketCreate has no org_id
+    # field, so an org_id in the body is dropped by the model rather than
+    # honoured -- the tenant of a new ticket is never client-controlled (G4.5).
+    ticket = Ticket(org_id=principal.org_id, status=TicketStatus.new, **payload.model_dump())
     session.add(ticket)
     await session.commit()
     await session.refresh(ticket)
@@ -58,13 +62,13 @@ async def create_ticket(
 @router.get("/api/tickets")
 async def list_tickets(
     session: AsyncSession = Depends(get_session),
-    org_id: uuid.UUID = Depends(current_org_id),
+    principal: Principal = ANY_PERSONA,
     status: TicketStatus | None = Query(default=None),
     department: str | None = Query(default=None),
     service: str | None = Query(default=None),
     is_eval_seed: bool | None = Query(default=None),
 ) -> list[dict[str, Any]]:
-    statement = select(Ticket).where(Ticket.org_id == org_id)
+    statement = select(Ticket).where(Ticket.org_id == principal.org_id)
     if status is not None:
         statement = statement.where(Ticket.status == status)
     if department is not None:
@@ -82,9 +86,9 @@ async def list_tickets(
 async def get_ticket_detail(
     ticket_id: uuid.UUID,
     session: AsyncSession = Depends(get_session),
-    org_id: uuid.UUID = Depends(current_org_id),
+    principal: Principal = ANY_PERSONA,
 ) -> dict[str, Any]:
-    ticket = await session.get(Ticket, ticket_id)
-    if ticket is None or ticket.org_id != org_id:
+    ticket = await get_scoped(session, Ticket, ticket_id, principal.org_id)
+    if ticket is None:
         raise HTTPException(status_code=404, detail="ticket not found")
     return ticket_payload(ticket)

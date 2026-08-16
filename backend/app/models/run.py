@@ -31,6 +31,11 @@ class FailureReason(enum.StrEnum):
     timeout = "timeout"
     tool_error = "tool_error"
     internal_error = "internal_error"
+    # Retried to the limit and still failing (spec 05 §4). Distinct from
+    # `internal_error` on purpose: one run that errored is a bug report, a run
+    # that poisoned N workers is an operational fact, and they want different
+    # responses.
+    dead_letter = "dead_letter"
 
 
 class Run(TenantBase, TimestampMixin, Base):
@@ -59,6 +64,15 @@ class Run(TenantBase, TimestampMixin, Base):
         Enum(FailureReason, name="failure_reason", values_callable=lambda e: [m.value for m in e])
     )
     error: Mapped[str | None] = mapped_column(Text)
+    # Incremented every time a worker picks this run up. The counter lives in
+    # Postgres rather than in the queue because it must survive Redis losing
+    # the job — which is precisely the situation that re-enqueues it.
+    attempts: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    # The human who started this run. SET NULL on user delete: the run
+    # happened, and the audit trail should keep saying so.
+    triggered_by: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL")
+    )
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 

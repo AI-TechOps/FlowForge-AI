@@ -79,6 +79,11 @@ jobs:
       - name: Runtime isolation guard (D6)
         run: python scripts/check_runtime_isolation.py
 
+      # D18 decision 7: the automated half of tenant scoping. Review alone has
+      # already missed two cross-tenant reads (Codex Phase 3 F6, Phase 4 F1).
+      - name: Tenant scoping guard (D18)
+        run: python scripts/check_tenant_scoping.py
+
       - name: Run tests
         run: pytest --tb=short
 
@@ -187,6 +192,19 @@ jobs:
           REDIS_URL: redis://localhost:6379/0
         run: pytest tests/phase3 -v --tb=short
 
+      # G4.1-G4.6. These seed their own two organizations with a full set of
+      # principals in each, and mint tokens through the local dev issuer --
+      # which exercises the same verification path Auth0 would, so no tenant is
+      # needed here (D18 decision 1).
+      - name: Run Phase 4 gates (G4.1-G4.6)
+        env:
+          PHASE4_REQUIRE_LIVE: "1"
+          PHASE4_DATABASE_URL: postgresql+asyncpg://flowforge:flowforge@localhost:5432/flowforge
+          PHASE4_BASE_URL: http://localhost:8000
+          DATABASE_URL: postgresql+asyncpg://flowforge:flowforge@localhost:5432/flowforge
+          REDIS_URL: redis://localhost:6379/0
+        run: pytest tests/phase4 -v --tb=short
+
       # Codex's adversarial probes. Several drive the live stack (credential
       # handling, cross-tenant run detail, rollback behaviour), so they belong
       # here rather than in the Postgres-only fast job.
@@ -195,6 +213,16 @@ jobs:
           PHASE2_REQUIRE_LIVE: "1"
           PHASE2_DATABASE_URL: postgresql+asyncpg://flowforge:flowforge@localhost:5432/flowforge
           PHASE2_BASE_URL: http://localhost:8000
+          # Phase 3 and 4 probes need their own live flags, or they skip
+          # silently when the stack is missing — a probe that quietly does not
+          # run is worse than no probe, because the report says it passed.
+          PHASE3_REQUIRE_LIVE: "1"
+          PHASE3_DATABASE_URL: postgresql+asyncpg://flowforge:flowforge@localhost:5432/flowforge
+          PHASE3_BASE_URL: http://localhost:8000
+          PHASE3_COMPOSE_FILE: ${{ github.workspace }}/infra/docker-compose.yml
+          PHASE4_REQUIRE_LIVE: "1"
+          PHASE4_DATABASE_URL: postgresql+asyncpg://flowforge:flowforge@localhost:5432/flowforge
+          PHASE4_BASE_URL: http://localhost:8000
           # Several probes import app/ directly (audit scrubber, tool clamping,
           # transport retry). app/db.py constructs the engine at import time, so
           # settings must resolve even for probes that never open a connection.

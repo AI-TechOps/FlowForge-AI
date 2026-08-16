@@ -16,6 +16,8 @@ from uuid import UUID, uuid4
 
 import pytest
 
+from tests.support.auth import gate_database_url, token_for_org, token_for_user
+
 DEFAULT_BASE_URL = "http://localhost:8000"
 DEFAULT_ORG_HEADER = "X-Org-ID"
 DEFAULT_USER_HEADER = "X-User-ID"
@@ -57,10 +59,23 @@ class Phase3Client:
         headers: dict[str, str] = {}
         if org_id:
             headers[self.org_header] = org_id
+            # Phase 4: org_id now comes from the authenticated principal, so
+            # the header above no longer selects a tenant. It is left in place
+            # deliberately -- G4.5 proves it is ignored rather than honoured.
+            headers["Authorization"] = "Bearer " + token_for_org(
+                self.base_url, gate_database_url(), org_id
+            )
             separator = "&" if "?" in path else "?"
             path = f"{path}{separator}{urlencode({'org_id': org_id})}"
         if user_id:
             headers[self.user_header] = user_id
+            # A named user overrides the org token: this suite asserts that a
+            # decision is attributed to the specific approver it chose, and
+            # after Phase 4 that identity has to come from the token. The
+            # header stays so G4.5 can prove it no longer decides anything.
+            headers["Authorization"] = "Bearer " + token_for_user(
+                self.base_url, gate_database_url(), user_id
+            )
         if json_body is not None:
             payload = dict(json_body)
             data = json.dumps(payload).encode("utf-8")

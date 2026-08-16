@@ -212,17 +212,37 @@ The 16-task plan lives in `specs/05-phase4-auth-tenant.md`; tasks 2, 13 and 16 a
 
 ---
 
-## Open items (as of 2026-08-15)
+## D19 — Phase 5 review gate resolved (2026-08-16)
 
+Phase 4 is built and merged (PR #10). G4.1–G4.6 pass, all eleven findings across three adversarial rounds are fixed, and CI is green. The Phase 5 spec is **Approved** with seven decisions:
+
+1. **The judge is a second *local* model, not a second prompt.** `qwen2.5:7b` against llama3.1:8b triage — a different family, so different weights and different blind spots, which is the whole point of D5. Config validation refuses a judge equal to the triage model. Keeping it in Ollama preserves D11 (local-first, free) and lets an eval batch run offline; OpenAI remains available for final validation. A different prompt on the same model was rejected outright: that is a model grading its own homework.
+2. **Eval mode is a separate compiled graph, not a flag.** `build_graph(eval_mode=True)` produces a graph in which the approval interrupt node *does not exist*, so an eval batch cannot pause. Rejected an `is_eval` boolean checked inside the approval node: the human-in-the-loop would then rest on a flag being false, and a flag that can be set can be set wrongly on a real run. Same reasoning as G3.2, where the rejected→execute edge was removed rather than guarded.
+3. **G5.2's canary pair is a real-model gate, opt-in, like G2.4.** A deliberately-wrong resolution must score below a correct one, which requires actual semantics; the fake provider is deterministic and semantically blind. CI asserts what a fake honestly can — rubric-schema validation and the judge≠triage config check. Building a "judge mode" into the fake was rejected as the exact fiction D18 decision 1 exists to prevent: it would look like proof of judgement while proving only wiring.
+4. **A batch runs as background jobs and is scored as runs settle.** `POST /api/eval/run` returns a batch id immediately; the runs go through the existing arq path, so eval exercises the real execution machinery rather than a parallel one. G5.4 (a batch completes even when individual runs fail) falls out of this rather than needing special handling. A synchronous endpoint would hold an HTTP connection for minutes and let one hung run kill the batch.
+5. **Deterministic scoring covers the three fields the fixture actually labels** — category, urgency, recommended_team. The spec listed `suggested_priority`, but no such label exists in `fixtures/eval_tickets.json`; inventing twenty priority labels now would add an unreviewed answer key to one that is *already* unreviewed (G1.5). The spec is amended to match the fixture rather than the fixture bent to match the spec.
+6. **Cost and evaluation accuracy are administrator-only** in `GET /api/metrics/summary`; every authenticated role sees run counts, latency, approval/edit/rejection rates and the pending-approval count. Spend and model-accuracy are oversight figures, and the personas doc gives oversight to the Administrator.
+7. **The pricing table stays versioned in code**, in `app/llm/cost.py`, with an as-of date and Ollama at zero. Config-file pricing was rejected because an unset table silently reports $0 — and the cost figure is the one most likely to be quoted in a demo, so it should be the one most visible in review.
+
+The 16-task plan lives in `specs/06-phase5-eval-observability.md`; tasks 2 and 16 are Codex's.
+
+---
+
+## Open items (as of 2026-08-16)
+
+- **G1.5 is now blocking, not just overdue.** Phase 5 scores the agent against these labels and writes the result into a regression table that later phases compare against; an unreviewed answer key becomes a permanent baseline the moment a batch is recorded. Original note:
 - **G1.5 (Phase 1) is now on the critical path.** `fixtures/eval_tickets.json`, `fixtures/retrieval_checks.json`, and `fixtures/enterprise/taxonomy.json` still carry `review_status: draft_pending_code_owner_review`. G2.4 cleared its bar by a small margin against labels nobody has signed off, and Phase 5's formal eval inherits the same answer key. **EVAL-012 and EVAL-019 were mis-categorised identically in two independent runs** — either a consistent model blind spot or two wrong labels, and they are the first worth a human look.
 - ~~**Eval denominator inconsistent between tools.**~~ **Closed in Phase 3.** `scripts/eval_baseline.py` now scores over every ticket attempted, matching the gate, and both treat a run resting at `awaiting_approval` as scoreable — Phase 3's pause would otherwise have reported 0% for a working agent. Historic `eval/baseline.md` rows predate the change; the recorded 75% and 80% figures were already on the all-tickets basis.
 - ~~**Build Phase 3**~~ **Done.** Merged as PR #9; G3.1–G3.7 green and Codex's six adversarial findings fixed.
 - ~~**Phase 4 spec review**~~ **Resolved** as D18 above.
+- ~~**Build Phase 4**~~ merged as PR #10; all four CI jobs green on `ab56e56`.
+- ~~**Phase 5 spec review**~~ **Resolved** as D19 above.
+- **Build Phase 5** on `feat/phase5-eval-observability`: tasks 1, 3–15 (Claude), 2 and 16 (Codex).
 - ~~**Build Phase 4**~~ **Done** (tasks 1–15). Task 13 was reassigned from Codex to Claude mid-phase: the retrofit is harness-only and no assertion changed, and leaving the Phase 0–3 suites red would have blocked the phase on a second Codex round-trip. Task 16 (adversarial pass + cold review) remains Codex's.
 - **An Auth0 tenant does not exist yet** and only a code owner can create one: one tenant, one SPA application, callback URLs, an API identifier, and the seed users. Until those values are in `.env`, Phase 4 develops entirely against the local dev issuer (D18 decision 1) — which is a supported path, not a workaround, but the Auth0 half of G4.1 stays unproven until a real tenant exists.
 - ~~**Phases 0–3 gate suites will go red mid-phase.**~~ **Closed.** They went red at task 6 as planned and are green again: `tests/support/auth.py` maps the org id they already have onto a token, one line per suite, with no assertion touched.
 - **`/api/dev/token` is the largest remaining attack surface** and deserves the adversarial pass's attention. It is unauthenticated by necessity (a login endpoint cannot require a login) and signs for identities we do not know (so that first-login refusal is testable). Its only guards are the prod 404 and the local-provider 404. If either regressed, anyone reaching the port could mint a token for any seeded email.
-- **Deferred, tracked in ARCHITECTURE.md** (recorded so they are found on purpose, not in an incident): HNSW index on `chunks.embedding`, Postgres RLS, value-level credential scanning in audit payloads, and a genuinely different eval-judge model.
+- **Deferred, tracked in ARCHITECTURE.md** (recorded so they are found on purpose, not in an incident): HNSW index on `chunks.embedding`, Postgres RLS, and value-level credential scanning in audit payloads. (A genuinely different eval-judge model is no longer deferred — D19 decision 1 adopts one.)
 
 ---
 

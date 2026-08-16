@@ -80,7 +80,15 @@ async def score_run(
     judge_model: str | None = None
     if actual:
         judgement = await judge_result(
-            {"title": ticket.title, "description": ticket.description}, actual, evidence, settings
+            {"title": ticket.title, "description": ticket.description},
+            actual,
+            evidence,
+            settings,
+            org_id=batch.org_id,
+            # Attributed to the run it judged, so the run detail page shows the
+            # judgement alongside the work it scored rather than in a second
+            # trail nobody opens.
+            run_id=run.id if run else None,
         )
         if judgement is not None:
             scores["resolution_quality"] = judgement.resolution_quality

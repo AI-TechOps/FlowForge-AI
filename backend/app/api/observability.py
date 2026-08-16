@@ -38,6 +38,13 @@ router = APIRouter()
 # Administrator.
 ADMIN_ONLY_METRICS = ("estimated_cost_usd", "evaluation_accuracy", "avg_tokens_per_run")
 
+# Audit rows that are tool calls, for the tool-success denominator. Expressed
+# as "not a model call and not a lifecycle record" rather than as a list of the
+# five tool names: a sixth tool should count the day it is added, whereas a new
+# `llm.` or `run.` record should never silently join the denominator.
+_NON_TOOL_PREFIXES = ("llm.", "run.", "approval.")
+_TOOL_ROWS = tuple(AuditLog.tool.not_like(f"{prefix}%") for prefix in _NON_TOOL_PREFIXES)
+
 
 @router.get("/api/metrics/summary")
 async def metrics_summary(
@@ -85,12 +92,17 @@ async def metrics_summary(
     # Tool success: an audit row whose result records an error is a failure.
     # Counted from the trail rather than from run status because a run can
     # succeed with a tool having failed and been retried (G3.6).
+    #
+    # Only the five MVP tools count. The trail also carries model calls
+    # (`llm.*`) and lifecycle records (`run.*`, `approval.*`), and folding
+    # those in would make "tool success rate" mean "share of audit rows that
+    # did not error" — a different number that moves when logging changes.
     tool_total, tool_failed = (
         await session.execute(
             select(
                 func.count(AuditLog.id),
                 func.count(AuditLog.id).filter(AuditLog.result["error"].astext.is_not(None)),
-            ).where(*audit_window, AuditLog.tool.not_in(("llm.complete_structured",)))
+            ).where(*audit_window, *_TOOL_ROWS)
         )
     ).one()
 

@@ -12,12 +12,15 @@ failed judgement, not a silent zero.
 """
 
 import logging
+import uuid
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.agents import audit
 from app.config import Settings, get_settings
 from app.eval.prompts import JUDGE_VERSION, SYSTEM, build_prompt
+from app.llm.cost import estimate_cost
 from app.llm.provider import get_provider
 
 logger = logging.getLogger(__name__)
@@ -41,6 +44,8 @@ async def judge_result(
     actual: dict[str, Any] | None,
     evidence: list[dict[str, Any]] | None,
     settings: Settings | None = None,
+    org_id: uuid.UUID | None = None,
+    run_id: uuid.UUID | None = None,
 ) -> JudgeScore | None:
     """Score one triage result, or None if it cannot be judged.
 
@@ -50,6 +55,11 @@ async def judge_result(
     pipeline's failure. `summarize` excludes None from the judge means, while
     the deterministic scores still count that ticket as incorrect, so the
     failure is visible in accuracy where it belongs.
+
+    Audited like every other LLM call when an org is known (G2.5): judging a
+    20-ticket batch is 20 more model calls, and leaving them out of the trail
+    would understate the batch's tokens and its cost — the figure §3 aggregates
+    into `/api/metrics/summary` and the one most likely to be quoted out loud.
     """
     settings = settings or get_settings()
     resolution = (actual or {}).get("recommended_resolution")
@@ -66,9 +76,7 @@ async def judge_result(
     )
 
     try:
-        completion = await provider.complete_structured(
-            prompt, JudgeScore.model_json_schema(), system=SYSTEM
-        )
+        completion = await _complete(provider, prompt, org_id, run_id)
         return JudgeScore.model_validate_json(completion.raw)
     except Exception:  # noqa: BLE001 - a failed judgement must not fail the batch
         # Deliberately swallowed. The judge is one signal among several, and a
@@ -77,3 +85,39 @@ async def judge_result(
         # actually depends on (G5.4).
         logger.warning("judge scoring failed; result recorded without judge scores", exc_info=True)
         return None
+
+
+async def _complete(
+    provider: Any, prompt: str, org_id: uuid.UUID | None, run_id: uuid.UUID | None
+) -> Any:
+    """The judge call, audited when it belongs to an organization.
+
+    Unaudited when `org_id` is absent, which is the pure-function path the
+    scorer's unit tests use — an audit row needs a tenant to belong to, and
+    inventing one to satisfy a test would put fiction in the immutable trail.
+    """
+    if org_id is None:
+        return await provider.complete_structured(
+            prompt, JudgeScore.model_json_schema(), system=SYSTEM
+        )
+
+    async with audit.timed(
+        org_id=org_id,
+        run_id=run_id,
+        # Not "agent": the judge is a separate actor scoring the agent's work,
+        # and a trail that calls both "agent" cannot answer which model spent
+        # the tokens.
+        actor="judge",
+        tool="llm.judge",
+        payload={"judge_version": JUDGE_VERSION, "model_schema": "JudgeScore"},
+    ) as box:
+        completion = await provider.complete_structured(
+            prompt, JudgeScore.model_json_schema(), system=SYSTEM
+        )
+        box["tokens_in"] = completion.tokens_in
+        box["tokens_out"] = completion.tokens_out
+        box["cost_estimate"] = estimate_cost(
+            completion.model, completion.tokens_in, completion.tokens_out
+        )
+        box["result"] = {"raw_length": len(completion.raw), "model": completion.model}
+    return completion

@@ -88,7 +88,10 @@ jobs:
         run: pytest --tb=short
 
   integration:
-    name: phase1-and-phase2-gates
+    # Named for what it runs, which is now every live gate G1.1-G5.5 plus the
+    # adversarial probes — not the two phases it started life covering. A stale
+    # job name is a check nobody reads correctly when it goes red.
+    name: live-gates-and-adversarial
     runs-on: ubuntu-latest
     # G1.1–G1.4 and G2.1–G2.6 are HTTP integration gates: they need the full
     # stack (db+pgvector, redis, backend, worker), and G1.4 kills/restarts the

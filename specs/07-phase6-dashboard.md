@@ -35,11 +35,18 @@ This phase is where the project stops being provable by `curl` and starts being 
 - **Live data:** polling only (D21 decision 3) — run detail 2s until terminal, approval inbox 5s, documents 3s while processing, dashboard 15s. No backend change.
 - **No business logic in the frontend:** display, forms, and calls. Grounding, scoring and authorization are decided server-side and rendered here.
 
+### Visual design (D21 decisions 8–11)
+
+- **Both themes with a toggle**, dark by default. Every colour is a CSS custom property defined twice — `:root` for dark, `[data-theme="light"]` for light — so no component ever names a colour. Preference persists in `localStorage` and falls back to `prefers-color-scheme`.
+- **Developer-tool precision** (Cursor / Linear register): near-monochrome surfaces, one restrained accent, hairline borders rather than shadows, tight vertical rhythm, and status carried by small badges. Technical values — run ids, chunk refs, model names, hashes, JSON — are always monospace.
+- **Self-hosted Inter + JetBrains Mono** as `woff2` under `frontend/public/fonts`, declared with `@font-face` and `font-display: swap`. Static assets, not packages; no CDN, which the container could not reach anyway. Tabular figures (`font-variant-numeric: tabular-nums`) on every metric so digits do not jitter while polling.
+- **Left sidebar, compact density** (~34px rows). The sidebar lists only the routes the current role can use, which is what makes G6.2's role slicing legible in a single screenshot per persona.
+
 ## Scope (out)
 
 - Drag-and-drop agent builder (explicitly excluded by CLAUDE.md).
 - **User & role management** — the Administrator persona mentions it, but the ten-screen list omits it and no endpoint exists. Building it means new backend write APIs inside a frontend phase (D21 decision 5). Roles are seeded by `scripts/seed.py`.
-- Real-time push (SSE/WebSocket), mobile layouts (desktop-first, sane at laptop widths), i18n, dark-mode toggle.
+- Real-time push (SSE/WebSocket), mobile layouts (desktop-first, sane at laptop widths), i18n.
 - A charting dependency. The dashboard's metrics are a handful of scalars and rates; one hand-rolled SVG bar chart covers it (D21 decision 6).
 
 ## Gates & checks

@@ -281,6 +281,76 @@ Job payloads carry org context and every job re-checks it. A run that exhausts
 rather than in a queue nobody reads. Postgres — not Redis — is the authority on
 outstanding work, so a run whose queued job is lost is re-enqueued by the reconciler.
 
+## Evaluation & observability (Phase 5)
+
+Every run is measurable. A batch scores the agent against the labeled seed set,
+and one metrics endpoint feeds the whole Phase 6 dashboard.
+
+```bash
+ADMIN="Authorization: Bearer $(python scripts/dev_token.py --email admin@demo)"
+
+# Start a batch: triages every is_eval_seed ticket, then scores it.
+# 202 with a batch id -- the runs go through the ordinary arq path, so the eval
+# measures the pipeline that ships rather than a parallel one (D19 decision 4).
+BATCH=$(curl -sX POST localhost:8000/api/eval/run -H "$ADMIN" | jq -r .id)
+
+# The regression table, newest first, and one batch in full (summary + every
+# per-ticket result: expected, actual, scores, judge rationale).
+curl -s localhost:8000/api/eval/batches -H "$ADMIN"
+curl -s "localhost:8000/api/eval/batches/$BATCH" -H "$ADMIN"
+
+# Every MVP dashboard metric, over a window.
+curl -s "localhost:8000/api/metrics/summary?window_days=30" -H "$ADMIN"
+
+# Cross-run audit (admin) and the read-only agent configuration (any persona).
+curl -s "localhost:8000/api/audit?tool=llm.judge&limit=20" -H "$ADMIN"
+curl -s localhost:8000/api/config/agent -H "$ADMIN"
+
+# Run history, filtered. Eval runs are excluded unless asked for: a batch adds
+# twenty at once and none of them is work a person requested.
+curl -s "localhost:8000/api/runs?status=completed&since=2026-08-01T00:00:00Z" -H "$ADMIN"
+```
+
+**Eval mode is a different graph, not a flag.** `build_graph(eval_mode=True)`
+compiles a graph in which the approval and execute nodes *do not exist*, so an
+eval run ends at its proposal and is scored as it stands. A twenty-ticket batch
+therefore cannot strand twenty runs waiting for a human, and an eval run cannot
+write — not because a boolean is false, but because there is no node to reach
+(D19 decision 2). `runs.eval_batch_id` is the single marker, set only by
+`POST /api/eval/run`.
+
+**What is scored.** Deterministically, in code: `category`, `urgency` and
+`recommended_team` against the fixture labels, plus grounded-rate and hit@k.
+`suggested_priority` is deliberately unscored — the fixture carries no priority
+label (D19 decision 5). By model: `recommended_resolution` quality and
+citation-support on an anchored 1–5 rubric, judged by **a different model than
+triage** (`qwen2.5:7b` vs `llama3.1:8b`). A judge equal to the triage model is a
+config error and the stack refuses to start.
+
+**The answer key never enters the database.** `fixtures/eval_tickets.json` is
+mounted read-only into the backend and worker (`EVAL_LABELS_PATH`); the loader
+puts tickets in Postgres and leaves the labels out, so the eval knows the
+answers and the pipeline never does.
+
+**Metrics are role-sliced.** Every persona sees run counts, latency, tool
+success, approval/edit/rejection rates, retrieval success and pending
+approvals. Cost, evaluation accuracy and tokens-per-run are administrator-only
+(D19 decision 6) and are *absent* rather than zeroed — an absent key is a fact
+a dashboard can render, a zero is a lie somebody can act on. Every rate is
+`null`, never `0.0`, when its denominator is empty.
+
+**Cost is an estimate with a date on it.** The per-model pricing table lives in
+`app/llm/cost.py` with an as-of date (D19 decision 7); Ollama is $0. Estimates
+are recorded per call in the audit trail and summed here.
+
+**Logs are structured JSON with `run_id` correlation** across API and worker
+(`LOG_FORMAT=text` for tailing by eye). One run's whole life — accepted by the
+API, executed by the worker, judged by the scorer — is a single `run_id` query.
+
+Regression protocol: `eval/baseline.md` holds one row per batch, keyed by
+`agent_version`. **A prompt or model change without a fresh row there is a
+convention violation**, checked at PR review.
+
 ## Phase 0 definition-of-done walkthrough
 
 1. `docker compose -f infra/docker-compose.yml up --build` — all four services start; db and redis have healthchecks, backend waits for both.

@@ -403,7 +403,10 @@ export function Ring({
   return (
     <svg width={size} height={size} aria-hidden="true" style={{ transform: "rotate(-90deg)" }}>
       <circle cx={c} cy={c} r={r} fill="none" stroke="var(--panel-2)" strokeWidth={thickness} />
-      {value !== null && (
+      {/* Zero draws nothing. A round line cap on a zero-length dash still
+          paints a dot, which reads as "a very small amount" rather than
+          "none" — and on an accuracy gauge that difference matters. */}
+      {value !== null && pct > 0 && (
         <circle
           cx={c}
           cy={c}

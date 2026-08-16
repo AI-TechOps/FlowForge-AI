@@ -396,11 +396,18 @@
 
 .metric {
   position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
   padding: var(--sp-4);
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   overflow: hidden;
+  /* A floor, so a card with no sub-line still lines up with one that has a
+     sub-line and a gauge. Cards in a row are equal height via the grid; this
+     keeps them equal ACROSS rows too. */
+  min-height: 124px;
   transition: border-color var(--t-med) var(--ease), transform var(--t-med) var(--ease);
 }
 
@@ -409,10 +416,11 @@
   transform: translateY(-1px);
 }
 
-.metric__top {
+.metric__head {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: var(--sp-3);
+  min-width: 0;
 }
 
 /* The tinted icon badge. Carries the metric's meaning as colour without
@@ -420,8 +428,8 @@
 .metric__badge {
   display: grid;
   place-items: center;
-  width: 34px;
-  height: 34px;
+  width: 30px;
+  height: 30px;
   border-radius: var(--radius);
   flex: none;
   background: var(--accent-quiet);
@@ -446,6 +454,8 @@
 }
 
 .metric__label {
+  flex: 1;
+  min-width: 0;
   font-size: var(--fs-xs);
   font-weight: 500;
   text-transform: uppercase;
@@ -453,18 +463,29 @@
   color: var(--text-muted);
 }
 
+/* Value and gauge are siblings in their own row. This is what makes them
+   unable to overlap: previously both lived in one flex row with the label, so
+   a label long enough to wrap pushed the value underneath the gauge. */
+.metric__body {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  margin-top: auto;
+}
+
 .metric__value {
-  margin-top: var(--sp-1);
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-1);
+  min-width: 0;
   font-size: var(--fs-metric);
   font-weight: 600;
   letter-spacing: -0.03em;
   line-height: 1.05;
-  display: flex;
-  align-items: baseline;
-  gap: var(--sp-1);
 }
 
-/* The unit, set small and raised — "2.4h" reads as one value, not two. */
+/* The unit, set small and raised — "0.13s" reads as one value, not two. */
 .metric__unit {
   font-size: var(--fs-md);
   font-weight: 500;
@@ -472,29 +493,28 @@
   letter-spacing: 0;
 }
 
-.metric__value--muted {
-  color: var(--text-faint);
-  font-weight: 500;
+.metric__ring {
+  flex: none;
+  display: grid;
+  place-items: center;
+  line-height: 0;
 }
 
 /* "No data yet" is a sentence, not a number — sized as one so a card with
    nothing in it does not shout as loudly as a card with a figure. */
 .metric__value--empty {
-  margin-top: var(--sp-2);
   font-size: var(--fs-md);
   font-weight: 400;
   color: var(--text-faint);
-  line-height: 2.1;
 }
 
 .metric__sub {
-  margin-top: var(--sp-2);
   font-size: var(--fs-xs);
   color: var(--text-faint);
 }
 
 .metric__spark {
-  margin: var(--sp-3) calc(var(--sp-4) * -1) calc(var(--sp-4) * -1);
+  margin: 0 calc(var(--sp-4) * -1) calc(var(--sp-4) * -1);
   opacity: 0.9;
 }
 

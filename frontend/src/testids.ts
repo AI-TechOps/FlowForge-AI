@@ -123,6 +123,7 @@ export const TID = {
   evalBatchRow: (id: string) => `eval-batch-${id}`,
   evalBatchDetail: "eval-batch-detail",
   evalMetric: (key: string) => `eval-metric-${key}`,
+  evalMetricValue: (key: string) => `eval-metric-value-${key}`,
   evalResultRow: (seedRef: string) => `eval-result-${seedRef}`,
 
   /* ---- audit -------------------------------------------------------- */

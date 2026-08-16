@@ -17,6 +17,7 @@ import {
   Badge,
   Empty,
   ErrorState,
+  Icon,
   Loading,
   Mono,
   PageHead,
@@ -26,6 +27,7 @@ import {
   num,
   timeAgo,
 } from "../components/ui";
+import { MetricCard } from "../components/MetricCard";
 import { useTitle } from "../shell/Shell";
 import { TID, testid } from "../testids";
 
@@ -137,16 +139,6 @@ export function Evaluation() {
   );
 }
 
-function Metric({ id, label, value, sub }: { id: string; label: string; value: string; sub?: string }) {
-  return (
-    <div className="metric" {...testid(TID.evalMetric(id))}>
-      <div className="metric__label">{label}</div>
-      <div className="metric__value">{value}</div>
-      {sub && <div className="metric__sub">{sub}</div>}
-    </div>
-  );
-}
-
 function BatchDetail({ batchId }: { batchId: string }) {
   const batch = useEvalBatch(batchId);
 
@@ -165,25 +157,99 @@ function BatchDetail({ batchId }: { batchId: string }) {
   return (
     <div className="stack" {...testid(TID.evalBatchDetail)}>
       <div className="grid grid--metrics">
-        <Metric id="accuracy_overall" label="Overall" value={pct(s.accuracy_overall)} sub="all three fields correct" />
-        <Metric id="accuracy_category" label="Category" value={pct(s.accuracy_category)} />
-        <Metric id="accuracy_urgency" label="Urgency" value={pct(s.accuracy_urgency)} />
-        <Metric id="accuracy_recommended_team" label="Team" value={pct(s.accuracy_recommended_team)} />
-        <Metric id="grounded_rate" label="Grounded" value={pct(s.grounded_rate)} />
-        <Metric id="retrieval_hit_at_k" label="Retrieval hit@k" value={pct(s.retrieval_hit_at_k)} />
-        <Metric
-          id="judge_resolution"
+        <MetricCard
+          testId={TID.evalMetric("accuracy_overall")}
+          valueTestId={TID.evalMetricValue("accuracy_overall")}
+          label="Overall"
+          value={pct(s.accuracy_overall)}
+          sub="all three fields correct"
+          icon={Icon.target({ size: 15 })}
+          tone="accent"
+          ring={s.accuracy_overall ?? null}
+        />
+        <MetricCard
+          testId={TID.evalMetric("accuracy_category")}
+          valueTestId={TID.evalMetricValue("accuracy_category")}
+          label="Category"
+          value={pct(s.accuracy_category)}
+          icon={Icon.ticket({ size: 15 })}
+          tone="ok"
+          ring={s.accuracy_category ?? null}
+        />
+        <MetricCard
+          testId={TID.evalMetric("accuracy_urgency")}
+          valueTestId={TID.evalMetricValue("accuracy_urgency")}
+          label="Urgency"
+          value={pct(s.accuracy_urgency)}
+          icon={Icon.alert({ size: 15 })}
+          tone="warn"
+          ring={s.accuracy_urgency ?? null}
+        />
+        <MetricCard
+          testId={TID.evalMetric("accuracy_recommended_team")}
+          valueTestId={TID.evalMetricValue("accuracy_recommended_team")}
+          label="Team"
+          value={pct(s.accuracy_recommended_team)}
+          icon={Icon.approval({ size: 15 })}
+          tone="accent"
+          ring={s.accuracy_recommended_team ?? null}
+        />
+        <MetricCard
+          testId={TID.evalMetric("grounded_rate")}
+          valueTestId={TID.evalMetricValue("grounded_rate")}
+          label="Grounded"
+          value={pct(s.grounded_rate)}
+          sub="answers with ≥1 valid citation"
+          icon={Icon.shield({ size: 15 })}
+          tone="ok"
+          ring={s.grounded_rate ?? null}
+        />
+        <MetricCard
+          testId={TID.evalMetric("retrieval_hit_at_k")}
+          valueTestId={TID.evalMetricValue("retrieval_hit_at_k")}
+          label="Retrieval hit@k"
+          value={pct(s.retrieval_hit_at_k)}
+          icon={Icon.search({ size: 15 })}
+          tone="accent"
+          ring={s.retrieval_hit_at_k ?? null}
+        />
+        <MetricCard
+          testId={TID.evalMetric("judge_resolution")}
+          valueTestId={TID.evalMetricValue("judge_resolution")}
           label="Judge · resolution"
           value={num(s.judge_resolution_quality_mean, 2)}
-          sub={`of 5 · ${s.judged_tickets ?? 0} judged`}
+          unit="/ 5"
+          sub={`${s.judged_tickets ?? 0} judged`}
+          icon={Icon.spark({ size: 15 })}
+          tone="accent"
+          ring={
+            s.judge_resolution_quality_mean != null
+              ? s.judge_resolution_quality_mean / 5
+              : null
+          }
         />
-        <Metric
-          id="judge_citation"
+        <MetricCard
+          testId={TID.evalMetric("judge_citation")}
+          valueTestId={TID.evalMetricValue("judge_citation")}
           label="Judge · citation"
           value={num(s.judge_citation_support_mean, 2)}
-          sub="of 5"
+          unit="/ 5"
+          sub="does the citation support the answer"
+          icon={Icon.document({ size: 15 })}
+          tone="accent"
+          ring={
+            s.judge_citation_support_mean != null ? s.judge_citation_support_mean / 5 : null
+          }
         />
-        <Metric id="failed_runs" label="Failed runs" value={String(s.failed_runs ?? 0)} />
+        <MetricCard
+          testId={TID.evalMetric("failed_runs")}
+          valueTestId={TID.evalMetricValue("failed_runs")}
+          label="Failed runs"
+          value={String(s.failed_runs ?? 0)}
+          sub="never produced a scoreable result"
+          icon={Icon.alert({ size: 15 })}
+          tone={(s.failed_runs ?? 0) > 0 ? "err" : "neutral"}
+        />
       </div>
 
       <Panel

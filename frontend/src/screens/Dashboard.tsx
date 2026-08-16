@@ -28,12 +28,11 @@ import {
   AreaChart,
   Donut,
   Legend,
-  Ring,
-  Sparkline,
   bucketCountsBy,
   bucketSeries,
   type Slice,
 } from "../components/charts";
+import { MetricCard } from "../components/MetricCard";
 import {
   Empty,
   ErrorState,
@@ -51,65 +50,6 @@ import { useHasRole, useTitle } from "../shell/Shell";
 import { TID, testid } from "../testids";
 
 const WINDOWS = [7, 30, 90] as const;
-
-type Tone = "accent" | "ok" | "warn" | "err" | "neutral";
-
-function Metric({
-  id,
-  label,
-  value,
-  unit,
-  sub,
-  icon,
-  tone = "accent",
-  spark,
-  ring,
-}: {
-  id: string;
-  label: string;
-  value: string;
-  unit?: string;
-  sub?: string;
-  icon: JSX.Element;
-  tone?: Tone;
-  spark?: number[];
-  ring?: number | null;
-}) {
-  const empty = value === "—";
-  return (
-    <div className="metric" {...testid(TID.metric(id))}>
-      <div className="metric__top">
-        <span className={`metric__badge metric__badge--${tone === "accent" ? "accent" : tone}`}>
-          {icon}
-        </span>
-        <div style={{ minWidth: 0, flex: 1 }}>
-          <div className="metric__label">{label}</div>
-          {/* An em-dash at 32px is a horizontal bar, which reads as a loading
-              skeleton rather than "no data". Absent values say so in words. */}
-          {empty ? (
-            <div className="metric__value--empty" {...testid(TID.metricValue(id))}>
-              No data yet
-            </div>
-          ) : (
-            <div className="metric__value" {...testid(TID.metricValue(id))}>
-              {value}
-              {unit && <span className="metric__unit">{unit}</span>}
-            </div>
-          )}
-        </div>
-        {ring !== undefined && !empty && (
-          <Ring value={ring} tone={tone === "neutral" ? "accent" : tone} />
-        )}
-      </div>
-      {sub && <div className="metric__sub">{sub}</div>}
-      {spark && spark.length > 1 && (
-        <div className="metric__spark">
-          <Sparkline values={spark} tone={tone === "neutral" ? "accent" : tone} />
-        </div>
-      )}
-    </div>
-  );
-}
 
 /** Who did a thing, from the audit row's actor shape. */
 function actorFace(actor: string) {
@@ -203,8 +143,9 @@ export function Dashboard() {
       {m && (
         <div className="stack fade-in">
           <div className="grid grid--metrics">
-            <Metric
-              id="total_runs"
+            <MetricCard
+              testId={TID.metric("total_runs")}
+              valueTestId={TID.metricValue("total_runs")}
               label="Runs"
               value={String(m.total_runs)}
               sub={`last ${m.window_days} days`}
@@ -212,8 +153,9 @@ export function Dashboard() {
               tone="accent"
               spark={chart.total}
             />
-            <Metric
-              id="successful_runs"
+            <MetricCard
+              testId={TID.metric("successful_runs")}
+              valueTestId={TID.metricValue("successful_runs")}
               label="Completed"
               value={String(m.successful_runs)}
               sub={m.total_runs ? `${pct(m.successful_runs / m.total_runs)} of runs` : undefined}
@@ -222,16 +164,18 @@ export function Dashboard() {
               spark={chart.completed}
               ring={m.total_runs ? m.successful_runs / m.total_runs : null}
             />
-            <Metric
-              id="waiting_approvals"
+            <MetricCard
+              testId={TID.metric("waiting_approvals")}
+              valueTestId={TID.metricValue("waiting_approvals")}
               label="Awaiting approval"
               value={String(m.waiting_approvals)}
               sub="the human gate"
               icon={Icon.approval({ size: 16 })}
               tone={m.waiting_approvals > 0 ? "warn" : "neutral"}
             />
-            <Metric
-              id="failed_runs"
+            <MetricCard
+              testId={TID.metric("failed_runs")}
+              valueTestId={TID.metricValue("failed_runs")}
               label="Failed"
               value={String(m.failed_runs)}
               sub="ungrounded or errored"
@@ -239,8 +183,9 @@ export function Dashboard() {
               tone={m.failed_runs > 0 ? "err" : "neutral"}
               spark={chart.failed}
             />
-            <Metric
-              id="grounded_rate"
+            <MetricCard
+              testId={TID.metric("grounded_rate")}
+              valueTestId={TID.metricValue("grounded_rate")}
               label="Grounded"
               value={pct(m.grounded_rate)}
               sub="answers with ≥1 valid citation"
@@ -248,8 +193,9 @@ export function Dashboard() {
               tone="ok"
               ring={m.grounded_rate}
             />
-            <Metric
-              id="retrieval_success"
+            <MetricCard
+              testId={TID.metric("retrieval_success")}
+              valueTestId={TID.metricValue("retrieval_success")}
               label="Retrieval hit@k"
               value={pct(m.retrieval_success)}
               sub="label's document was retrieved"
@@ -257,8 +203,9 @@ export function Dashboard() {
               tone="accent"
               ring={m.retrieval_success}
             />
-            <Metric
-              id="avg_latency_seconds"
+            <MetricCard
+              testId={TID.metric("avg_latency_seconds")}
+              valueTestId={TID.metricValue("avg_latency_seconds")}
               label="Avg latency"
               value={m.avg_latency_seconds === null ? "—" : num(m.avg_latency_seconds, 2)}
               unit={m.avg_latency_seconds === null ? undefined : "s"}
@@ -266,16 +213,18 @@ export function Dashboard() {
               icon={Icon.clock({ size: 16 })}
               tone="neutral"
             />
-            <Metric
-              id="avg_tokens_per_run"
+            <MetricCard
+              testId={TID.metric("avg_tokens_per_run")}
+              valueTestId={TID.metricValue("avg_tokens_per_run")}
               label="Tokens / run"
               value={m.avg_tokens_per_run === null ? "—" : num(m.avg_tokens_per_run, 0)}
               sub="model calls including the judge"
               icon={Icon.spark({ size: 16 })}
               tone="accent"
             />
-            <Metric
-              id="tool_success_rate"
+            <MetricCard
+              testId={TID.metric("tool_success_rate")}
+              valueTestId={TID.metricValue("tool_success_rate")}
               label="Tool success"
               value={pct(m.tool_success_rate)}
               sub="the five MVP tools"
@@ -283,8 +232,9 @@ export function Dashboard() {
               tone="ok"
               ring={m.tool_success_rate}
             />
-            <Metric
-              id="approval_rate"
+            <MetricCard
+              testId={TID.metric("approval_rate")}
+              valueTestId={TID.metricValue("approval_rate")}
               label="Approval rate"
               value={pct(m.approval_rate)}
               sub={
@@ -298,8 +248,9 @@ export function Dashboard() {
             />
             {/* Administrator-only, and present only because the API sent them. */}
             {"evaluation_accuracy" in m && (
-              <Metric
-                id="evaluation_accuracy"
+              <MetricCard
+              testId={TID.metric("evaluation_accuracy")}
+              valueTestId={TID.metricValue("evaluation_accuracy")}
                 label="Eval accuracy"
                 value={pct(m.evaluation_accuracy)}
                 sub="latest batch, all three fields"
@@ -309,8 +260,9 @@ export function Dashboard() {
               />
             )}
             {"estimated_cost_usd" in m && (
-              <Metric
-                id="estimated_cost_usd"
+              <MetricCard
+              testId={TID.metric("estimated_cost_usd")}
+              valueTestId={TID.metricValue("estimated_cost_usd")}
                 label="Estimated cost"
                 value={`$${(m.estimated_cost_usd ?? 0).toFixed(4)}`}
                 sub={m.cost_pricing_as_of ? `pricing as of ${m.cost_pricing_as_of}` : undefined}

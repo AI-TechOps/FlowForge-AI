@@ -54,7 +54,12 @@ EXPECTED: dict[str, Any] = {
 # Removed entirely for non-administrators (D19 decision 6) — spend and model
 # accuracy are oversight figures, and the personas doc gives oversight to the
 # Administrator.
-ADMIN_ONLY_KEYS = ("estimated_cost_usd", "evaluation_accuracy", "avg_tokens_per_run")
+#
+# `avg_tokens_per_run` was listed here and should not have been: spec 06 §3
+# names tokens among the metrics every authenticated role sees. Corrected on
+# Codex's own instruction in the Phase 5 adversarial review (finding 6), which
+# flagged this assertion as encoding the runtime defect rather than catching it.
+ADMIN_ONLY_KEYS = ("estimated_cost_usd", "evaluation_accuracy")
 
 
 async def _seed_metrics_dataset(database_url: str, org_id: str) -> None:
@@ -331,6 +336,7 @@ def test_g5_3_operators_do_not_see_cost_or_accuracy(
         "waiting_approvals",
         "approval_rate",
         "retrieval_success",
+        "avg_tokens_per_run",
     ):
         assert key in body, key
 

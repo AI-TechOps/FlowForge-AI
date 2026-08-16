@@ -36,7 +36,13 @@ router = APIRouter()
 # Metrics an operator or approver does not see (D19 decision 6). Spend and
 # model accuracy are oversight figures; the personas doc gives oversight to the
 # Administrator.
-ADMIN_ONLY_METRICS = ("estimated_cost_usd", "evaluation_accuracy", "avg_tokens_per_run")
+#
+# Exactly two, and `avg_tokens_per_run` is deliberately not one of them. Spec 06
+# §3 lists tokens among what every authenticated role sees, and withholding it
+# was over-reach on our part rather than anything the decision asked for (Codex
+# Phase 5 finding 6). Tokens are a throughput figure an operator can act on;
+# cost is the spend figure this list exists to restrict.
+ADMIN_ONLY_METRICS = ("estimated_cost_usd", "evaluation_accuracy")
 
 # Audit rows that are tool calls, for the tool-success denominator. Expressed
 # as "not a model call and not a lifecycle record" rather than as a list of the
@@ -120,10 +126,24 @@ async def metrics_summary(
     decisions = {d.value: c for d, c in decision_rows if d is not None}
     decided = sum(decisions.values())
 
+    # Windowed like every other metric here. Without the predicate a batch from
+    # 200 days ago supplied `evaluation_accuracy`, `retrieval_success` and
+    # `grounded_rate` to a 30-day request (Codex Phase 5 finding 7) — one
+    # parameter that silently governed some of the response and not the rest.
+    #
+    # The cost of consistency is that a window with no batch in it reports
+    # None. That is the right answer and the same rule `_ratio` follows: "no
+    # eval has run recently" is a fact worth showing, and quietly substituting
+    # a stale figure is how a dashboard reports accuracy for a prompt that is
+    # no longer deployed.
     latest_batch = (
         await session.execute(
             select(EvalBatch)
-            .where(EvalBatch.org_id == org_id, EvalBatch.summary.is_not(None))
+            .where(
+                EvalBatch.org_id == org_id,
+                EvalBatch.summary.is_not(None),
+                EvalBatch.created_at >= since,
+            )
             .order_by(EvalBatch.created_at.desc())
             .limit(1)
         )

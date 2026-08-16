@@ -10,6 +10,27 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 EMBEDDING_DIM = 768
 
 
+def _model_family(model: str) -> str:
+    """The part of a model name that identifies its weights, not its size.
+
+    D19 decision 1 asks for a different *family*, not a different string, and
+    comparing whole names let `llama3.1:8b` be judged by `llama3.1:70b` — same
+    training data, same blind spots, which is the one thing an independent
+    judge exists to avoid (Codex Phase 5 finding 5).
+
+    Ollama puts the size in a `:tag`, so dropping the tag separates family from
+    size. Provider prefixes (`openai/gpt-4o`) are dropped for the same reason:
+    the same model reached two ways is still one model. This is a heuristic and
+    it errs toward refusing — `gpt-4o` and `gpt-4o-mini` do read as different
+    families here, which is a gap a name alone cannot close. It is strictly
+    better than exact equality, and the canary in G5.2 is what actually
+    measures whether the judge has independent judgement.
+    """
+    name = model.strip().lower()
+    name = name.rsplit("/", 1)[-1]
+    return name.split(":", 1)[0]
+
+
 class Settings(BaseSettings):
     """Application settings, read from environment variables (or a local .env).
 
@@ -88,11 +109,12 @@ class Settings(BaseSettings):
         against a judge that was grading its own output — and that batch would
         already be in the regression table.
         """
-        if self.judge_model.strip() == self.triage_model.strip():
+        triage, judge = self.triage_model.strip(), self.judge_model.strip()
+        if _model_family(judge) == _model_family(triage):
             raise ValueError(
-                f"JUDGE_MODEL must differ from TRIAGE_MODEL (both are "
-                f"{self.triage_model!r}). A model grading its own output shares "
-                "its own blind spots — see D5."
+                f"JUDGE_MODEL must be a different model family from TRIAGE_MODEL "
+                f"(triage={triage!r}, judge={judge!r}). A model grading its own "
+                "output shares its own blind spots — see D5 and D19 decision 1."
             )
         return self
 

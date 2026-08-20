@@ -6,9 +6,9 @@ Enterprise AI workflow automation platform. AI agents read support tickets, retr
 
 - `CLAUDE.md` — standing context for Claude Code. Read first, every session.
 - `ARCHITECTURE.md` — high-level design: system views, workflow, ingestion pipeline, data model.
-- `DECISIONS.md` — decisions D1–D12 with rationale, plus the personas in detail.
+- `DECISIONS.md` — decisions D1–D22 with rationale, plus the personas in detail. Each phase's review gate is recorded there (D14–D22), including the adversarial rounds and what they found.
 - `specs/00-mvp-definition.md` — the MVP: personas, journey, tools, screens, definition of done (approved).
-- `specs/01-phase0-foundation.md` … `specs/08-phase7-ship.md` — one spec per phase (0–7), each reviewed before its task plan is written. Phase 0 is approved.
+- `specs/01-phase0-foundation.md` … `specs/08-phase7-ship.md` — one spec per phase (0–7), each reviewed and approved before its task plan is written. Phases 0–6 are approved and built; Phase 7 is the remaining spec review.
 - `specs/09-demo-enterprise-corpus.md` — the fictional company (Meridian Dynamics), its documentation template, corpus, and labeled ticket set.
 - `specs/10-codex-integration.md` — Codex's lanes, boundaries, and the Claude↔Codex handoff protocol per phase.
 
@@ -27,16 +27,23 @@ Trivial fixes skip the spec. Real features do not.
 
 ## Phases
 
-| Phase | Delivers |
-|-------|----------|
-| 0 | Foundation: Docker Compose, FastAPI + React skeletons, config, org/tenant model |
-| 1 | RAG: ingestion, chunking, embeddings, retrieval, seed eval ticket set |
-| 2 | Triage agent: LangGraph graph, structured output, read tools |
-| 3 | Actions + approval: write tools, durable pause, approve/edit/reject |
-| 4 | Auth + tenant: OAuth2, roles, org_id enforcement, background processing |
-| 5 | Eval + observability: logging, rubric scoring, metrics endpoints |
-| 6 | Dashboard: all MVP screens on real data |
-| 7 | Ship: AWS free-tier deploy, demo, teardown, README |
+| Phase | Delivers | Status |
+|-------|----------|--------|
+| 0 | Foundation: Docker Compose, FastAPI + React skeletons, config, org/tenant model | ✅ merged |
+| 1 | RAG: ingestion, chunking, embeddings, retrieval, seed eval ticket set | ✅ merged |
+| 2 | Triage agent: LangGraph graph, structured output, read tools | ✅ merged |
+| 3 | Actions + approval: write tools, durable pause, approve/edit/reject | ✅ merged (PR #9) |
+| 4 | Auth + tenant: OAuth2, roles, org_id enforcement, background processing | ✅ merged (PR #10) |
+| 5 | Eval + observability: logging, rubric scoring, metrics endpoints | ✅ merged (PR #11) |
+| 6 | Dashboard: all MVP screens on real data | ✅ merged (PR #12) |
+| 7 | Ship: AWS free-tier deploy, demo, teardown, README | next |
+
+**The MVP journey works end to end today**, locally: an administrator uploads a
+policy, an operator files a ticket and starts triage, the agent retrieves
+evidence and proposes a grounded action, the run *pauses*, a different human
+approves or edits it, the approved write executes against the mock ticket
+system, and the whole thing lands in the audit trail. Phase 7 is deployment and
+the recording — not remaining functionality.
 
 ## Running
 
@@ -381,13 +388,13 @@ finished endpoint whose role gate the server already enforces.
 | Screen | Endpoint | Who |
 |---|---|---|
 | Login | `/api/dev/token` or Auth0 → `/api/me` | anyone |
-| Dashboard | `/api/metrics/summary`, `/api/runs` | any persona |
-| Tickets · New ticket | `/api/tickets`, `POST /api/runs` | any · operator |
+| Dashboard | `/api/metrics/summary`, `/api/runs`, `/api/audit` (feed, admin) | any persona |
+| Tickets · New ticket | `/api/tickets` (status, department, service, eval-seed filters), `POST /api/runs` | any · operator |
 | Runs · Run detail | `/api/runs`, `/api/runs/{id}` | any persona |
 | Approval inbox | `/api/approvals`, `/decision` | admin reads · **approver decides** |
 | Knowledge · Upload | `/api/documents`, `/reingest` | administrator |
 | Evaluation | `/api/eval/batches` | administrator |
-| Audit log | `/api/audit` | administrator |
+| Audit log | `/api/audit` (run, actor, tool, date range; paginated) | administrator |
 | Agent config | `/api/config/agent` | any persona |
 
 **Role gating in the UI is presentational, never protective.** The sidebar shows
@@ -411,6 +418,22 @@ panel reads the entries embedded in `GET /api/runs/{id}`, which are tenant-scope
 for every persona, so an operator sees their run's trail without the
 administrator-only `/api/audit`.
 
+**Charts are hand-rolled SVG and every series is real.** There is no
+time-series endpoint, so the activity chart and the outcome donut are derived
+client-side from `/api/runs`, filtered by the selected 7/30/90-day window.
+Nothing is padded or smoothed; the bucket grain follows the data — hours when
+everything is recent, days otherwise — and a sparkline with fewer than three
+non-zero buckets refuses to draw rather than showing a flat line with one spike.
+A chart that draws something when it has nothing is the most expensive kind of
+lie in a product whose claim is that its numbers can be trusted.
+
+**⌘K opens a command palette** over navigation, loaded tickets and recent runs.
+It respects roles the same way the sidebar does — an operator cannot jump to the
+audit log from it either — and it only fetches while open. Actions whose result
+lands somewhere the user is not looking (approving resumes a worker, uploading
+starts a background job) raise a toast; inline failures stay next to the field
+that failed, where the user is already looking.
+
 **Live data is polling, not push** (D21 decision 3): run detail every 2s until
 the run settles, the inbox every 5s, documents every 3s while anything is
 ingesting, the dashboard every 15s. Each stops on its own terms — a settled
@@ -426,9 +449,88 @@ cd frontend
 npm run typecheck    # tsc
 npm test             # Vitest component tests (role gating, metrics, client)
 npm run build        # the artifact the Docker image serves
-
-npm run e2e          # from the repo root: Playwright gates, needs the stack up
 ```
+
+## Running the gates
+
+Every phase carries numbered gates that assert its definition of done, and they
+are the point rather than a formality — three of the last four phases shipped
+with defects that only a gate caught. They split by what can be honestly proved
+without a live stack.
+
+**Offline** — no database, no browser, runs anywhere:
+
+```bash
+pip install -e "./backend[dev]"
+pytest                                  # unit + pure-function gates
+python scripts/check_runtime_isolation.py   # D6: app/ never imports tests, scripts, fixtures
+python scripts/check_tenant_scoping.py      # D18: no unscoped tenant loads under app/
+ruff check . && ruff format --check .
+
+cd frontend && npm ci && npm run typecheck && npm test
+```
+
+**Against the live stack** — bring it up first (`docker compose … up -d --build`,
+`alembic upgrade head`, `python scripts/seed.py`, `python scripts/reset_corpus.py`,
+`python scripts/load_eval_tickets.py`):
+
+```bash
+export DB=postgresql+asyncpg://flowforge:flowforge@localhost:5432/flowforge
+export LLM_PROVIDER=fake APP_ENV=dev COMPOSE_FILE=infra/docker-compose.yml
+
+# One phase at a time. PHASEn_REQUIRE_LIVE makes a live gate fail rather than
+# skip, so a stack that is not really up cannot report green.
+PHASE5_DATABASE_URL=$DB \
+  PHASE5_BASE_URL=http://localhost:8000 \
+  PHASE5_REQUIRE_LIVE=1 \
+  pytest tests/phase5 -v
+
+# Codex's adversarial probes (D6): they attack the seams the gates assume.
+# Export every phase's pair, not just one — a probe whose phase variables are
+# missing SKIPS rather than fails, so a partial export runs a third of the
+# suite and still prints green.
+for n in 2 3 4 5; do
+  export PHASE${n}_DATABASE_URL=$DB PHASE${n}_BASE_URL=http://localhost:8000
+done
+pytest tests/adversarial -v      # expect: 43 passed, 1 skipped, 2 xfailed
+```
+
+**In a browser** — G6.1–G6.5 drive nginx serving the production build, so what
+they exercise is the artifact that ships:
+
+```bash
+npm ci && npx playwright install chromium
+
+PHASE6_BASE_URL=http://localhost:5173 npx playwright test          # the 13 gates
+# `npm run e2e` from the repo root is the same thing; `npm run e2e:ui` opens
+# Playwright's inspector and `npm run e2e:report` reopens the last HTML report.
+# the 7 adversarial probes carry their own config, so the default invocation
+# above does not collect them
+PHASE6_BASE_URL=http://localhost:5173 \
+  npx playwright test --config=tests/adversarial/phase6.playwright.config.ts
+```
+
+CI runs all of it on every pull request across five jobs: `lint`, `frontend`
+(types, component tests, production build), `test` (offline suites plus the two
+isolation guards), `live-gates-and-adversarial` (the whole stack, G1.1–G6.5,
+both adversarial suites), and `secret-scan`.
+
+### Two gates that could not fail, and how they were found
+
+Worth knowing, because both looked green:
+
+- A `data-testid` marked *every retrieved chunk* rather than only the ones the
+  model cited, so G6.3's question — "does every rendered citation resolve to
+  stored evidence?" — was trivially true. Caught because Codex writes gates
+  against `frontend/src/testids.ts` without reading the screens; where the
+  implementation disagreed with the registry, the registry was right.
+- The CI step that runs the browser gates guarded itself with a glob needing
+  `globstar`, which bash does not enable, so it skipped all thirteen specs and
+  reported success. Caught by comparing job duration before and after, not by
+  trusting the green tick.
+
+A gate that cannot fail is worse than no gate, because it looks like coverage.
+Both fixes are recorded in `DECISIONS.md` (D22).
 
 ## Phase 0 definition-of-done walkthrough
 

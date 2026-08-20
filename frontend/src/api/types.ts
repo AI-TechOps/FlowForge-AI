@@ -162,6 +162,20 @@ export type DecisionValue = "approved" | "edited" | "rejected";
 export interface Approval {
   id: string;
   run_id: string;
+  /**
+   * The affected ticket, embedded by the detail endpoint — id, title, status,
+   * priority and team, already tenant-scoped. Reading it from here is what
+   * lets the approval card name its subject without two further round trips
+   * for data the payload already carried.
+   */
+  ticket?: {
+    id: string;
+    title: string;
+    status: string;
+    priority?: string | null;
+    assigned_team?: string | null;
+  } | null;
+  /** Not sent by the current API; tolerated in case the shape is ever flattened. */
   ticket_id?: string | null;
   status: ApprovalStatusValue;
   decision?: DecisionValue | null;

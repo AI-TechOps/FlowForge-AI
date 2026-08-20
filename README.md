@@ -404,6 +404,13 @@ evidence rather than dropping it. Hiding an unresolvable citation would make a
 broken run look clean — exactly the failure grounding exists to catch, concealed
 by the screen meant to reveal it.
 
+**An expired session ends everywhere at once.** Any 401 from any screen clears
+the token, drops the React session and empties the query cache — data fetched
+under a session that has ended must not outlive it on screen. Run detail's audit
+panel reads the entries embedded in `GET /api/runs/{id}`, which are tenant-scoped
+for every persona, so an operator sees their run's trail without the
+administrator-only `/api/audit`.
+
 **Live data is polling, not push** (D21 decision 3): run detail every 2s until
 the run settles, the inbox every 5s, documents every 3s while anything is
 ingesting, the dashboard every 15s. Each stops on its own terms — a settled

@@ -129,8 +129,19 @@ function ApprovalCard({ approvalId }: { approvalId: string }) {
   // payload omits it, so the card still names its subject. Resolved before the
   // early returns below — a hook behind a conditional return is a hook that
   // changes order between renders.
-  const ticketId = approval.data?.ticket_id ?? run.data?.ticket_id ?? null;
-  const ticket = useTicket(ticketId ?? undefined);
+  // The detail endpoint embeds the ticket, so prefer that and make no extra
+  // request. The flat `ticket_id` and the run are fallbacks for a payload that
+  // does not embed one; `useTicket` only fires when nothing else supplied a
+  // title, which against the real API is never.
+  const embeddedTicket = approval.data?.ticket ?? null;
+  const ticketId = embeddedTicket?.id ?? approval.data?.ticket_id ?? run.data?.ticket_id ?? null;
+  const fetchedTicket = useTicket(embeddedTicket ? undefined : (ticketId ?? undefined));
+  const ticketTitle = embeddedTicket?.title ?? fetchedTicket.data?.title ?? null;
+  const ticketDetail = embeddedTicket
+    ? [embeddedTicket.status, embeddedTicket.assigned_team, embeddedTicket.priority]
+        .filter(Boolean)
+        .join(" · ")
+    : (fetchedTicket.data?.service ?? null);
   const [mode, setMode] = useState<"edit" | "reject" | null>(null);
 
   if (approval.isPending) return <Panel><Loading rows={6} /></Panel>;
@@ -167,10 +178,10 @@ function ApprovalCard({ approvalId }: { approvalId: string }) {
               without being told which ticket would change. */}
           <dt>Ticket</dt>
           <dd {...testid(TID.approvalTicket)}>
-            {ticket.data ? (
+            {ticketTitle ? (
               <>
-                <Link to="/tickets">{ticket.data.title}</Link>
-                {ticket.data.service && <span className="faint"> · {ticket.data.service}</span>}
+                <Link to="/tickets">{ticketTitle}</Link>
+                {ticketDetail && <span className="faint"> · {ticketDetail}</span>}
               </>
             ) : (
               <span className="faint">loading…</span>

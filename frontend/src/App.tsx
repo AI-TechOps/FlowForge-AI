@@ -1,202 +1,208 @@
-import { useCallback, useEffect, useState } from "react";
-
-import {
-  authConfig,
-  clearToken,
-  completeAuth0Login,
-  fetchIdentity,
-  Identity,
-  loginAuth0,
-  loginLocal,
-  storedToken,
-} from "./auth";
-
-interface Health {
-  status: string;
-  db: string;
-  redis: string;
-}
-
-const SEED_USERS = ["admin@demo", "operator@demo", "approver@demo", "demo@demo"];
-
 /**
- * Phase 4 delivers MVP step 1 — "Admin logs in" — and nothing more.
+ * Routes and the authentication boundary.
  *
- * The definition of done says that step is *real*, which a login reachable
- * only by curl is not. So: sign in, see who you are and what you may do, sign
- * out. The dashboard screens are Phase 6 and this is deliberately not the
- * start of one.
+ * One decision worth naming: the app renders `Login` until `GET /api/me`
+ * succeeds, rather than trusting the presence of a token. A token in
+ * sessionStorage proves only that we once had one — it may be expired, or
+ * signed by an issuer the backend has since stopped trusting. Asking the server
+ * who we are is the only answer that cannot be stale, and it is one request.
  */
+
+import { useCallback, useEffect, useState } from "react";
+import { Navigate, Route, Routes, useNavigate } from "react-router-dom";
+
+import { authConfig, completeAuth0Login, storedToken } from "./auth";
+import { UNAUTHENTICATED_EVENT } from "./api/client";
+import { useQueryClient } from "@tanstack/react-query";
+
+import { useIdentity } from "./api/hooks";
+import { ErrorState, Loading } from "./components/ui";
+import { IdentityProvider, RequireRole, Shell } from "./shell/Shell";
+import { AgentConfig } from "./screens/AgentConfig";
+import { Approvals } from "./screens/Approvals";
+import { Audit } from "./screens/Audit";
+import { Dashboard } from "./screens/Dashboard";
+import { Documents } from "./screens/Documents";
+import { Evaluation } from "./screens/Evaluation";
+import { Login } from "./screens/Login";
+import { RunDetail } from "./screens/RunDetail";
+import { Runs } from "./screens/Runs";
+import { Tickets } from "./screens/Tickets";
+
 export default function App() {
-  const [health, setHealth] = useState<Health | null>(null);
-  const [healthError, setHealthError] = useState(false);
-  const [identity, setIdentity] = useState<Identity | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [token, setToken] = useState<string | null>(() => storedToken());
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [exchanging, setExchanging] = useState(false);
   const config = authConfig();
 
+  // Auth0 returns to the SPA with `?code=…`; exchange it once, then clean the
+  // URL so a refresh does not attempt to redeem a spent code.
   useEffect(() => {
-    const poll = () =>
-      fetch("/api/health")
-        .then((r) => r.json())
-        .then((h: Health) => {
-          setHealth(h);
-          setHealthError(false);
-        })
-        .catch(() => setHealthError(true));
-    poll();
-    const id = setInterval(poll, 5000);
-    return () => clearInterval(id);
+    const params = new URLSearchParams(window.location.search);
+    if (!params.has("code") || config.provider !== "auth0") return;
+    setExchanging(true);
+    completeAuth0Login(config)
+      .then((issued) => {
+        setToken(issued);
+        window.history.replaceState({}, "", window.location.pathname);
+      })
+      .catch((exc: Error) => setAuthError(exc.message))
+      .finally(() => setExchanging(false));
+  }, [config]);
+
+  const identity = useIdentity(Boolean(token));
+  const queryClient = useQueryClient();
+
+  // One place where an expired session ends. The API client announces every
+  // 401; this drops the React token and throws away the cache, because data
+  // fetched under a session that has ended must not survive it on screen.
+  useEffect(() => {
+    const onExpired = () => {
+      setToken(null);
+      queryClient.clear();
+    };
+    window.addEventListener(UNAUTHENTICATED_EVENT, onExpired);
+    return () => window.removeEventListener(UNAUTHENTICATED_EVENT, onExpired);
+  }, [queryClient]);
+
+  // `loginLocal` and `completeAuth0Login` both persist the token themselves —
+  // this only lifts it into React state so the tree re-renders.
+  const onToken = useCallback((issued: string) => {
+    setToken(issued);
+    setAuthError(null);
   }, []);
 
-  const loadIdentity = useCallback(async (token: string) => {
-    try {
-      setIdentity(await fetchIdentity(token));
-      setError(null);
-    } catch (exc) {
-      // A stored token that no longer works is worse than none: every
-      // subsequent call 401s with no explanation. Drop it and say why.
-      clearToken();
-      setIdentity(null);
-      setError(exc instanceof Error ? exc.message : String(exc));
-    }
-  }, []);
+  if (exchanging) return <Loading label="Completing sign-in" />;
 
-  useEffect(() => {
-    const returningFromAuth0 = new URLSearchParams(window.location.search).has("code");
-    if (returningFromAuth0 && config.provider === "auth0") {
-      completeAuth0Login(config)
-        .then(loadIdentity)
-        .catch((exc: Error) => setError(exc.message));
-      return;
-    }
-    const existing = storedToken();
-    if (existing) void loadIdentity(existing);
-  }, [config, loadIdentity]);
+  if (!token) {
+    return (
+      <>
+        {authError && (
+          <div className="banner banner--err" style={{ margin: "var(--sp-4)" }} role="alert">
+            {authError}
+          </div>
+        )}
+        <Login onToken={onToken} />
+      </>
+    );
+  }
 
-  const signIn = async (email: string) => {
-    setBusy(true);
-    setError(null);
-    try {
-      if (config.provider === "auth0") {
-        await loginAuth0(config);
-        return;
-      }
-      await loadIdentity(await loginLocal(email));
-    } catch (exc) {
-      setError(exc instanceof Error ? exc.message : String(exc));
-    } finally {
-      setBusy(false);
-    }
-  };
+  if (identity.isPending) return <Loading label="Signing in" />;
 
-  const signOut = async () => {
-    const token = storedToken();
-    if (token) {
-      // Best-effort: logout revokes nothing server-side (we issue no token of
-      // our own), so the meaningful part is dropping it here.
-      await fetch("/api/logout", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-      }).catch(() => undefined);
-    }
-    clearToken();
-    setIdentity(null);
-  };
-
-  const healthy = !healthError && health?.status === "ok";
-  const dotColor =
-    healthError || (health && health.status !== "ok") ? "#d33" : healthy ? "#2a2" : "#999";
-  const healthLabel = healthError
-    ? "backend unreachable"
-    : health
-      ? `backend ${health.status} (db: ${health.db}, redis: ${health.redis})`
-      : "checking…";
+  if (identity.isError || !identity.data) {
+    // Two very different failures land here and "could not load your identity"
+    // describes only one of them: an expired token, and a backend that is not
+    // running at all. `GET /api/health` is the one endpoint that answers
+    // without a token, so it is what separates "sign in again" from "start the
+    // stack" — and the second is the one somebody demoing actually hits.
+    return <IdentityFailure error={identity.error} onRestart={() => setToken(null)} />;
+  }
 
   return (
-    <main
-      style={{
-        fontFamily: "system-ui, sans-serif",
-        padding: "3rem 1.5rem",
-        maxWidth: 640,
-        margin: "0 auto",
-      }}
-    >
-      <h1 style={{ marginBottom: "0.25rem" }}>FlowForge-AI</h1>
-      <p style={{ color: "#666", marginTop: 0 }}>
-        <span
-          style={{
-            display: "inline-block",
-            width: 10,
-            height: 10,
-            borderRadius: "50%",
-            background: dotColor,
-            marginRight: 8,
-          }}
-        />
-        {healthLabel}
-      </p>
+    <IdentityProvider value={identity.data}>
+      <Routes>
+        <Route path="/login" element={<Navigate to="/" replace />} />
+        <Route element={<Shell identity={identity.data} />}>
+          <Route index element={<Dashboard />} />
+          <Route path="tickets" element={<Tickets />} />
+          <Route path="runs" element={<Runs />} />
+          <Route path="runs/:runId" element={<RunDetail />} />
+          <Route
+            path="approvals"
+            element={
+              <RequireRole roles={["approver", "administrator"]}>
+                <Approvals />
+              </RequireRole>
+            }
+          />
+          <Route
+            path="documents"
+            element={
+              <RequireRole roles={["administrator"]}>
+                <Documents />
+              </RequireRole>
+            }
+          />
+          <Route
+            path="evaluation"
+            element={
+              <RequireRole roles={["administrator"]}>
+                <Evaluation />
+              </RequireRole>
+            }
+          />
+          <Route
+            path="audit"
+            element={
+              <RequireRole roles={["administrator"]}>
+                <Audit />
+              </RequireRole>
+            }
+          />
+          <Route path="config" element={<AgentConfig />} />
+          <Route path="*" element={<NotFound />} />
+        </Route>
+      </Routes>
+    </IdentityProvider>
+  );
+}
 
-      <hr style={{ border: 0, borderTop: "1px solid #e5e5e5", margin: "1.5rem 0" }} />
+/**
+ * Distinguishes an expired session from an unreachable backend by asking the
+ * one endpoint that needs no token: `/api/health`.
+ */
+function IdentityFailure({ error, onRestart }: { error: unknown; onRestart: () => void }) {
+  const [reachable, setReachable] = useState<boolean | null>(null);
 
-      {identity ? (
-        <section>
-          <h2 style={{ fontSize: "1.1rem" }}>Signed in</h2>
-          <dl style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: "0.4rem 1rem" }}>
-            <dt style={{ color: "#666" }}>Email</dt>
-            <dd style={{ margin: 0 }}>{identity.email}</dd>
-            <dt style={{ color: "#666" }}>Roles</dt>
-            <dd style={{ margin: 0 }}>{identity.roles.join(", ") || "none"}</dd>
-            <dt style={{ color: "#666" }}>Organization</dt>
-            <dd style={{ margin: 0, fontFamily: "ui-monospace, monospace", fontSize: "0.85rem" }}>
-              {identity.org_id}
-            </dd>
-          </dl>
-          <button type="button" onClick={signOut} style={{ marginTop: "1.25rem", padding: "0.5rem 1rem" }}>
-            Sign out
-          </button>
-        </section>
-      ) : (
-        <section>
-          <h2 style={{ fontSize: "1.1rem" }}>Sign in</h2>
-          {config.provider === "auth0" ? (
-            <button
-              type="button"
-              onClick={() => void signIn("")}
-              disabled={busy}
-              style={{ padding: "0.5rem 1rem" }}
-            >
-              Continue with Auth0
-            </button>
-          ) : (
-            <>
-              <p style={{ color: "#666", fontSize: "0.9rem" }}>
-                Local dev issuer — pick a seeded identity. A real deployment
-                redirects to Auth0 instead.
-              </p>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}>
-                {SEED_USERS.map((email) => (
-                  <button
-                    key={email}
-                    type="button"
-                    onClick={() => void signIn(email)}
-                    disabled={busy}
-                    style={{ padding: "0.5rem 0.9rem" }}
-                  >
-                    {email}
-                  </button>
-                ))}
-              </div>
-            </>
-          )}
-        </section>
-      )}
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/health")
+      .then((r) => r.ok)
+      .catch(() => false)
+      .then((ok) => {
+        if (!cancelled) setReachable(ok);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
-      {error && (
-        <p style={{ color: "#d33", marginTop: "1.25rem" }} role="alert">
-          {error}
+  if (reachable === false) {
+    return (
+      <div className="state state--error" role="alert">
+        <div className="state__title">FlowForge is not reachable</div>
+        <p className="state__body">
+          The backend did not answer <code>/api/health</code>. If you are running this locally,
+          check that the <code>backend</code> container is up.
         </p>
-      )}
-    </main>
+        <button type="button" className="btn" onClick={() => window.location.reload()}>
+          Retry
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <ErrorState error={error ?? new Error("Could not load your identity")} />
+      <div style={{ textAlign: "center", paddingBottom: "var(--sp-8)" }}>
+        <button type="button" className="btn btn--primary" onClick={onRestart}>
+          Back to sign in
+        </button>
+      </div>
+    </>
+  );
+}
+
+function NotFound() {
+  const navigate = useNavigate();
+  return (
+    <div className="state">
+      <div className="state__title">Page not found</div>
+      <p className="state__body">That route does not exist in FlowForge.</p>
+      <button type="button" className="btn btn--primary" onClick={() => navigate("/")}>
+        Back to dashboard
+      </button>
+    </div>
   );
 }

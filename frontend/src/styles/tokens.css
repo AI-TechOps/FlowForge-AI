@@ -1,0 +1,207 @@
+/**
+ * Design tokens (D21 decisions 8-11).
+ *
+ * The one rule this file exists to enforce: **no component names a colour.**
+ * Components reference `var(--panel)`, never `#101318`. That is what makes two
+ * themes cost one stylesheet instead of two, and it is the discipline that
+ * keeps a hand-written system from sprawling once it meets ten screens.
+ *
+ * Dark is the default and lives on `:root`, so a page renders correctly before
+ * any JavaScript decides otherwise — no flash of the wrong theme. Light is an
+ * override under `[data-theme="light"]`, set on <html> by the theme module.
+ *
+ * Surfaces are layered rather than flat: `bg` < `panel` < `panel-2` < `raised`.
+ * Depth is carried by that ladder plus hairline borders, not by drop shadows —
+ * shadows on a dark ground read as smudges, which is why the reference products
+ * that look expensive in dark mode use elevation through colour instead.
+ *
+ * Colour is reserved for meaning. Green means completed, amber means a human is
+ * waiting, red means it failed, and the accent means "this is interactive". If
+ * everything is coloured, nothing is.
+ */
+
+@font-face {
+  font-family: "Inter";
+  src: url("/fonts/inter-400.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  /* swap, never block: a font that fails to load should cost us glyph
+     substitution for a frame, not a blank screen. */
+  font-display: swap;
+}
+@font-face {
+  font-family: "Inter";
+  src: url("/fonts/inter-500.woff2") format("woff2");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Inter";
+  src: url("/fonts/inter-600.woff2") format("woff2");
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("/fonts/jetbrains-mono-400.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("/fonts/jetbrains-mono-500.woff2") format("woff2");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  /* ---- surfaces, as a ladder ------------------------------------------ */
+  --bg: #08090c;
+  --bg-elev: #0b0d11;
+  --panel: #101318;
+  --panel-2: #151920;
+  --panel-hover: #1a1f28;
+  --raised: #1d232d;
+  --border: #1e232c;
+  --border-strong: #2a313d;
+  --border-accent: #33405c;
+
+  /* A whisper of light across the top of a card, the way a real surface
+     catches it. One pixel, 6% white — invisible until it is missing. */
+  --sheen: rgb(255 255 255 / 6%);
+
+  /* ---- text ---------------------------------------------------------- */
+  --text: #e9ecf1;
+  --text-muted: #939ba8;
+  --text-faint: #626b7a;
+
+  /* ---- accent -------------------------------------------------------- */
+  --accent: #5b8def;
+  --accent-hover: #7ba5f5;
+  --accent-quiet: rgb(91 141 239 / 14%);
+  --accent-ghost: rgb(91 141 239 / 7%);
+  --accent-contrast: #ffffff;
+  --accent-2: #7c6bf5;
+  --accent-3: #22d3ee;
+
+  /* ---- status -------------------------------------------------------- */
+  --ok: #35c46a;
+  --ok-quiet: rgb(53 196 106 / 14%);
+  --warn: #e0a33c;
+  --warn-quiet: rgb(224 163 60 / 14%);
+  --err: #f0584f;
+  --err-quiet: rgb(240 88 79 / 14%);
+  --info: #58a6ff;
+  --info-quiet: rgb(88 166 255 / 14%);
+  --neutral-quiet: rgb(147 155 168 / 12%);
+
+  /* ---- data visualisation -------------------------------------------- */
+  --viz-1: #5b8def;
+  --viz-2: #7c6bf5;
+  --viz-3: #22d3ee;
+  --viz-4: #35c46a;
+  --viz-5: #e0a33c;
+  --viz-6: #f0584f;
+  --grid: rgb(255 255 255 / 5%);
+
+  /* ---- typography ---------------------------------------------------- */
+  --font-ui: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --fs-xs: 0.75rem;
+  --fs-sm: 0.8125rem;
+  --fs-md: 0.875rem;
+  --fs-lg: 1rem;
+  --fs-xl: 1.25rem;
+  --fs-2xl: 1.75rem;
+  --fs-metric: 2rem;
+  --fs-hero: 2.75rem;
+
+  /* ---- spacing: a 4px scale, so vertical rhythm is arithmetic --------- */
+  --sp-1: 0.25rem;
+  --sp-2: 0.5rem;
+  --sp-3: 0.75rem;
+  --sp-4: 1rem;
+  --sp-5: 1.25rem;
+  --sp-6: 1.5rem;
+  --sp-8: 2rem;
+  --sp-10: 2.5rem;
+  --sp-12: 3rem;
+
+  /* ---- geometry ------------------------------------------------------ */
+  --radius-sm: 5px;
+  --radius: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --row-h: 36px;
+  --sidebar-w: 244px;
+  --topbar-h: 56px;
+  --content-max: 1520px;
+
+  /* ---- elevation and glow -------------------------------------------- */
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 40%);
+  --shadow-pop: 0 16px 48px rgb(0 0 0 / 60%), 0 2px 8px rgb(0 0 0 / 40%);
+  --glow-accent: 0 0 0 1px rgb(91 141 239 / 30%), 0 8px 32px rgb(91 141 239 / 14%);
+  --focus-ring: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent);
+
+  /* ---- motion: one curve, three durations ---------------------------- */
+  --ease: cubic-bezier(0.32, 0.72, 0, 1);
+  --t-fast: 0.12s;
+  --t-med: 0.22s;
+  --t-slow: 0.4s;
+
+  color-scheme: dark;
+}
+
+[data-theme="light"] {
+  --bg: #f6f7f9;
+  --bg-elev: #ffffff;
+  --panel: #ffffff;
+  --panel-2: #f7f8fa;
+  --panel-hover: #f0f2f6;
+  --raised: #ffffff;
+  --border: #e5e8ed;
+  --border-strong: #d2d7df;
+  --border-accent: #b9cbf5;
+
+  --sheen: rgb(255 255 255 / 100%);
+
+  --text: #0f1319;
+  --text-muted: #59616e;
+  --text-faint: #838c99;
+
+  --accent: #2f6bed;
+  --accent-hover: #2258d4;
+  --accent-quiet: rgb(47 107 237 / 9%);
+  --accent-ghost: rgb(47 107 237 / 5%);
+  --accent-contrast: #ffffff;
+  --accent-2: #6d5cf0;
+  --accent-3: #0aa5c4;
+
+  --ok: #16884a;
+  --ok-quiet: rgb(22 136 74 / 11%);
+  --warn: #a4700c;
+  --warn-quiet: rgb(164 112 12 / 13%);
+  --err: #d03a30;
+  --err-quiet: rgb(208 58 48 / 11%);
+  --info: #1f6feb;
+  --info-quiet: rgb(31 111 235 / 10%);
+  --neutral-quiet: rgb(89 97 110 / 10%);
+
+  --viz-1: #2f6bed;
+  --viz-2: #6d5cf0;
+  --viz-3: #0aa5c4;
+  --viz-4: #16884a;
+  --viz-5: #a4700c;
+  --viz-6: #d03a30;
+  --grid: rgb(15 19 25 / 7%);
+
+  --shadow-sm: 0 1px 2px rgb(16 24 40 / 6%);
+  --shadow-pop: 0 16px 48px rgb(16 24 40 / 14%), 0 2px 8px rgb(16 24 40 / 6%);
+  --glow-accent: 0 0 0 1px rgb(47 107 237 / 22%), 0 8px 28px rgb(47 107 237 / 12%);
+
+  color-scheme: light;
+}

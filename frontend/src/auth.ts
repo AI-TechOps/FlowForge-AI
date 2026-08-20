@@ -83,14 +83,46 @@ export async function fetchIdentity(token: string): Promise<Identity> {
   return response.json();
 }
 
-/** Dev issuer: one round trip, no redirect. */
+/**
+ * Dev issuer: one round trip, no redirect.
+ *
+ * The failure messages are written for whoever is looking at the screen, which
+ * during a demo is not necessarily the person who built this. A bare
+ * "login failed (502)" says nothing actionable; "the backend is not reachable"
+ * says which of the four containers to look at.
+ */
 export async function loginLocal(email: string): Promise<string> {
-  const response = await fetch("/api/dev/token", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email }),
-  });
-  if (!response.ok) throw new Error(`local login failed (${response.status})`);
+  let response: Response;
+  try {
+    response = await fetch("/api/dev/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email }),
+    });
+  } catch {
+    // fetch only rejects when the request never completed at all.
+    throw new Error("Cannot reach FlowForge. Is the stack running?");
+  }
+
+  if (response.status === 404) {
+    // The dev issuer 404s under Auth0 or in prod, by design (D18).
+    throw new Error(
+      "The local dev issuer is not enabled on this backend — it is configured for Auth0.",
+    );
+  }
+  if (response.status === 502 || response.status === 503 || response.status === 504) {
+    throw new Error(`The backend is not responding (${response.status}). Check the API container.`);
+  }
+  if (!response.ok) {
+    let detail = "";
+    try {
+      detail = ((await response.json()) as { detail?: string }).detail ?? "";
+    } catch {
+      /* not JSON; the status is all we have */
+    }
+    throw new Error(detail || `Sign-in failed (${response.status}).`);
+  }
+
   const { access_token } = await response.json();
   storeToken(access_token);
   return access_token;

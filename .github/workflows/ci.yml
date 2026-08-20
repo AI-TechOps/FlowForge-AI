@@ -33,6 +33,41 @@ jobs:
       - name: Format check (ruff format)
         run: ruff format --check .
 
+  # The SPA's own checks: types, component tests, and a real production build.
+  # Fast and dependency-free — no database, no browser. The browser-driven
+  # gates (G6.1-G6.5) live in the integration job, because they need the whole
+  # stack, not just the frontend.
+  frontend:
+    name: frontend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      # `ci` not `install`: the lockfile is the input, so a drifted lockfile
+      # fails here rather than silently resolving something newer.
+      - name: Install
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Component tests (Vitest)
+        run: npm test
+
+      # Builds the same artifact the Docker image serves, so a build that only
+      # breaks under production settings is caught here rather than at deploy.
+      - name: Production build
+        run: npm run build
+
   test:
     name: test
     runs-on: ubuntu-latest
@@ -252,6 +287,65 @@ jobs:
           DATABASE_URL: postgresql+asyncpg://flowforge:flowforge@localhost:5432/flowforge
           REDIS_URL: redis://localhost:6379/0
         run: pytest tests/adversarial -v --tb=short
+
+      # G6.1-G6.5 drive the real stack through a browser: nginx serving the
+      # production build, the FastAPI backend, Postgres, Redis and the worker.
+      # They run last because they need every other service already up, and
+      # because the state the earlier gates leave behind is a more honest
+      # starting point than an empty database.
+      - name: Set up Node for the Phase 6 gates
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Start the frontend (production image)
+        run: |
+          docker compose -f "$COMPOSE_FILE" up -d --build frontend
+          for i in $(seq 1 60); do
+            curl -sf http://localhost:5173/ >/dev/null 2>&1 && break
+            sleep 2
+          done
+          curl -sf http://localhost:5173/api/health
+
+      # No conditional. The guard that used to live here existed only so the
+      # wiring was reviewable before Codex wrote the specs (task 4) -- and it
+      # was quietly broken: `ls tests/phase6/**/*.spec.ts` relies on globstar,
+      # which bash does not enable by default, so `ls` errored on the literal
+      # pattern and the step skipped even once the specs existed. The job went
+      # green having run nothing.
+      #
+      # That is the same failure this phase's own gates exist to prevent -- a
+      # check that cannot fail -- so the fix is not a cleverer glob. The specs
+      # are here now; the step runs unconditionally and Playwright fails loudly
+      # if they ever go missing.
+      - name: Run Phase 6 gates (G6.1-G6.5)
+        env:
+          PHASE6_BASE_URL: http://localhost:5173
+        run: |
+          test -d tests/phase6
+          npm ci
+          npx playwright install --with-deps chromium
+          npx playwright test
+
+      # Codex's Phase 6 adversarial probes. They carry their own Playwright
+      # config (own testMatch and output dir) so the official gate config stays
+      # untouched, which means the default `playwright test` above does not
+      # collect them — they need their own invocation or they silently rot.
+      - name: Run Phase 6 adversarial probes
+        env:
+          PHASE6_BASE_URL: http://localhost:5173
+        run: npx playwright test --config=tests/adversarial/phase6.playwright.config.ts
+
+      - name: Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
+          if-no-files-found: ignore
 
       - name: Stack logs on failure
         if: failure()

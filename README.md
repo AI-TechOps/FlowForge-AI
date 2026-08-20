@@ -44,7 +44,16 @@ Trivial fixes skip the spec. Real features do not.
 cp .env.example .env                          # defaults work for docker compose
 docker compose --env-file .env -f infra/docker-compose.yml up --build
 # backend:  http://localhost:8000/api/health  -> {"status":"ok","db":"ok","redis":"ok"}
-# frontend: http://localhost:5173             -> green backend-healthy indicator
+# frontend: http://localhost:5173             -> the dashboard, sign in as a seeded identity
+```
+
+The frontend container serves a **production build** from nginx, not a dev
+server (D21 decision 7) — so what you click is the artifact that ships, and
+nginx proxies `/api` to the backend. For hot reload while working on the SPA,
+run Vite directly instead:
+
+```bash
+cd frontend && npm install && npm run dev   # localhost:5173, proxies to :8000
 ```
 
 > `--env-file .env` matters: with `-f infra/docker-compose.yml` alone, compose
@@ -362,6 +371,64 @@ API, executed by the worker, judged by the scorer — is a single `run_id` query
 Regression protocol: `eval/baseline.md` holds one row per batch, keyed by
 `agent_version`. **A prompt or model change without a fresh row there is a
 convention violation**, checked at PR review.
+
+## The dashboard (Phase 6)
+
+Ten screens plus a read-only agent-config panel, on real endpoints. Phase 6 added
+**no backend surface** — Phase 5 closed the last gap, so every screen sits on a
+finished endpoint whose role gate the server already enforces.
+
+| Screen | Endpoint | Who |
+|---|---|---|
+| Login | `/api/dev/token` or Auth0 → `/api/me` | anyone |
+| Dashboard | `/api/metrics/summary`, `/api/runs` | any persona |
+| Tickets · New ticket | `/api/tickets`, `POST /api/runs` | any · operator |
+| Runs · Run detail | `/api/runs`, `/api/runs/{id}` | any persona |
+| Approval inbox | `/api/approvals`, `/decision` | admin reads · **approver decides** |
+| Knowledge · Upload | `/api/documents`, `/reingest` | administrator |
+| Evaluation | `/api/eval/batches` | administrator |
+| Audit log | `/api/audit` | administrator |
+| Agent config | `/api/config/agent` | any persona |
+
+**Role gating in the UI is presentational, never protective.** The sidebar shows
+only the routes your role can use and a guarded route refuses politely, but the
+server is the sole enforcer — editing the URL still earns a 403 from the API.
+The dashboard goes further and is role-aware *by absence*: the API simply omits
+cost and evaluation accuracy for non-administrators, so the screen renders the
+keys it was given and never decides who deserves what.
+
+**Run detail is the screen that has to prove the grounding rule.** It shows
+every retrieved chunk with document title, page and section, marks the ones the
+model cited, and **names any citation that does not resolve** to retrieved
+evidence rather than dropping it. Hiding an unresolvable citation would make a
+broken run look clean — exactly the failure grounding exists to catch, concealed
+by the screen meant to reveal it.
+
+**An expired session ends everywhere at once.** Any 401 from any screen clears
+the token, drops the React session and empties the query cache — data fetched
+under a session that has ended must not outlive it on screen. Run detail's audit
+panel reads the entries embedded in `GET /api/runs/{id}`, which are tenant-scoped
+for every persona, so an operator sees their run's trail without the
+administrator-only `/api/audit`.
+
+**Live data is polling, not push** (D21 decision 3): run detail every 2s until
+the run settles, the inbox every 5s, documents every 3s while anything is
+ingesting, the dashboard every 15s. Each stops on its own terms — a settled
+corpus stops polling entirely.
+
+Both themes ship, dark by default, and the toggle persists. Every colour is a
+token defined twice, so no component names a colour. `prefers-color-scheme` is
+deliberately ignored: it made "dark by default" mean "whatever the OS says",
+which changed what a demo recording looked like and what a browser gate saw.
+
+```bash
+cd frontend
+npm run typecheck    # tsc
+npm test             # Vitest component tests (role gating, metrics, client)
+npm run build        # the artifact the Docker image serves
+
+npm run e2e          # from the repo root: Playwright gates, needs the stack up
+```
 
 ## Phase 0 definition-of-done walkthrough
 

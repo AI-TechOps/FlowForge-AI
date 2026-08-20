@@ -22,3 +22,11 @@ __pycache__/
 .venv/
 .venv-host/
 venv/
+
+# Playwright (Phase 6 gates)
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+# Scratch screenshots from visual review; never committed.
+/.shots/

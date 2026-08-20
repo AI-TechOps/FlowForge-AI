@@ -28,12 +28,19 @@ async function editAProposal(page: Page, marker: string): Promise<{
   const count = await controls.count();
   expect(count, "the edit form must expose at least one validated proposal value").toBeGreaterThan(0);
 
+  // Prefer a genuinely free-text control. Enum-backed fields now carry a
+  // `list` attribute and refuse values outside the governed taxonomy, so an
+  // arbitrary edit typed into one is rejected before it is ever POSTed --
+  // which is the behaviour the adversarial review asked for, and would
+  // otherwise strand this step waiting for a request the client correctly
+  // never sends.
   let chosenIndex = -1;
   for (let index = 0; index < count; index += 1) {
     const control = controls.nth(index);
     const tagName = await control.evaluate((element) => element.tagName.toLowerCase());
     const inputType = (await control.getAttribute("type")) ?? "text";
-    if (tagName === "textarea" || (tagName === "input" && inputType === "text")) {
+    const constrained = (await control.getAttribute("list")) !== null;
+    if (!constrained && (tagName === "textarea" || (tagName === "input" && inputType === "text"))) {
       chosenIndex = index;
       break;
     }
@@ -57,6 +64,17 @@ async function editAProposal(page: Page, marker: string): Promise<{
     expect(replacement, "an enum edit needs a second valid option").toBeTruthy();
     edited = replacement!.value;
     await control.selectOption(edited);
+  } else if ((await control.getAttribute("list")) !== null) {
+    // Datalist-backed: the allowed values are in the DOM, so read them rather
+    // than inventing one the form is right to refuse.
+    const listId = await control.getAttribute("list");
+    const options = await page
+      .locator(`datalist#${listId} option`)
+      .evaluateAll((nodes) => nodes.map((node) => (node as HTMLOptionElement).value));
+    const replacement = options.find((option) => option !== original && option !== "");
+    expect(replacement, "a constrained edit needs a second allowed value").toBeTruthy();
+    edited = replacement!;
+    await control.fill(edited);
   } else {
     edited = `Phase 6 approved edit ${marker}`;
     await control.fill(edited);

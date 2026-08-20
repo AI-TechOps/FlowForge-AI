@@ -19,7 +19,7 @@
 
 import { Link, useParams } from "react-router-dom";
 
-import { isActive, useAudit, useRun, useTicket } from "../api/hooks";
+import { isActive, useRun, useTicket } from "../api/hooks";
 import type { EvidenceChunk, RunStatus } from "../api/types";
 import {
   Empty,
@@ -34,7 +34,7 @@ import {
   CopyId,
   formatDateTime,
 } from "../components/ui";
-import { useHasRole, useTitle } from "../shell/Shell";
+import { useTitle } from "../shell/Shell";
 import { TID, testid } from "../testids";
 
 /** The happy path, in order. `failed` and `rejected` are ends, not steps. */
@@ -130,10 +130,11 @@ export function RunDetail() {
   useTitle("Run");
   const run = useRun(runId);
   const ticket = useTicket(run.data?.ticket_id);
-  const isAdmin = useHasRole("administrator");
-  // The audit trail is admin-only server-side; asking as an operator would just
-  // collect 403s.
-  const audit = useAudit({ run_id: runId, limit: 100 }, isAdmin && Boolean(runId));
+  // No `/api/audit` call here. That route is administrator-only, but run
+  // detail is an any-persona screen and `GET /api/runs/{id}` already returns
+  // this run's audit entries, tenant-scoped, to whoever may read the run.
+  // Reaching for the global endpoint meant operators and approvers saw no
+  // trail at all on a screen the spec says includes one.
 
   if (run.isPending) return <Loading label="Loading run" />;
   if (run.isError) return <ErrorState error={run.error} onRetry={() => void run.refetch()} />;
@@ -154,6 +155,7 @@ export function RunDetail() {
   // was never retrieved is not evidence of anything.
   const unresolved = citations.filter((c) => !evidenceIds.has(c.chunk_id));
   const grounded = citedIds.size > 0;
+  const entries = r.audit_entries ?? [];
 
   return (
     <div {...testid(TID.runDetail)}>
@@ -412,63 +414,57 @@ export function RunDetail() {
           )}
         </Panel>
 
-        {isAdmin && (
-          <Panel
-            title={
-              <>
-                <span>Audit trail</span>
-                {audit.data && (
-                  <span className="faint" style={{ fontSize: "var(--fs-xs)", fontWeight: 400 }}>
-                    {audit.data.total} entries
-                  </span>
-                )}
-              </>
-            }
-            flush
-            {...testid(TID.runAudit)}
-          >
-            {audit.isPending && <Loading rows={4} />}
-            {audit.data?.entries.length === 0 && (
-              <p className="faint" style={{ padding: "var(--sp-4)" }}>
-                No audit entries for this run.
-              </p>
-            )}
-            {audit.data && audit.data.entries.length > 0 && (
-              <div className="table-wrap">
-                <table className="table">
-                  <thead>
-                    <tr>
-                      <th>Actor</th>
-                      <th>Tool</th>
-                      <th className="num">Latency</th>
-                      <th className="num">Tokens</th>
-                      <th>When</th>
+        <Panel
+          title={
+            <>
+              <span>Audit trail</span>
+              <span className="faint" style={{ fontSize: "var(--fs-xs)", fontWeight: 400 }}>
+                {entries.length} {entries.length === 1 ? "entry" : "entries"}
+              </span>
+            </>
+          }
+          flush
+          {...testid(TID.runAudit)}
+        >
+          {entries.length === 0 ? (
+            <p className="faint" style={{ padding: "var(--sp-4)" }}>
+              No audit entries for this run yet.
+            </p>
+          ) : (
+            <div className="table-wrap">
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>Actor</th>
+                    <th>Tool</th>
+                    <th className="num">Latency</th>
+                    <th className="num">Tokens</th>
+                    <th>When</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {entries.map((entry, i) => (
+                    <tr key={`${entry.tool}-${entry.created_at}-${i}`}>
+                      <td>
+                        <Mono>{entry.actor.startsWith("user:") ? "human" : entry.actor}</Mono>
+                      </td>
+                      <td>
+                        <Mono>{entry.tool}</Mono>
+                      </td>
+                      <td className="num muted">
+                        {entry.latency_ms === null ? "—" : `${entry.latency_ms}ms`}
+                      </td>
+                      <td className="num muted">
+                        {(entry.tokens_in ?? 0) + (entry.tokens_out ?? 0) || "—"}
+                      </td>
+                      <td className="muted">{formatDateTime(entry.created_at)}</td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {audit.data.entries.map((entry) => (
-                      <tr key={entry.id}>
-                        <td>
-                          <Mono>{entry.actor.startsWith("user:") ? "human" : entry.actor}</Mono>
-                        </td>
-                        <td>
-                          <Mono>{entry.tool}</Mono>
-                        </td>
-                        <td className="num muted">
-                          {entry.latency_ms === null ? "—" : `${entry.latency_ms}ms`}
-                        </td>
-                        <td className="num muted">
-                          {(entry.tokens_in ?? 0) + (entry.tokens_out ?? 0) || "—"}
-                        </td>
-                        <td className="muted">{formatDateTime(entry.created_at)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </Panel>
-        )}
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Panel>
       </div>
     </div>
   );

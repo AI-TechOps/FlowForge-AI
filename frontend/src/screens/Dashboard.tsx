@@ -73,14 +73,28 @@ export function Dashboard() {
   const m = metrics.data;
   const runs: Run[] = history.data?.runs ?? [];
 
+  // One windowed set, and both charts derive from it. The selector governs the
+  // whole dashboard: the donut used to count every run in the unwindowed
+  // history, so switching to 7 days moved the metric cards and left the
+  // distribution counting month-old runs beside them.
+  const windowed = useMemo(() => {
+    const cutoff = Date.now() - windowDays * 86_400_000;
+    return runs.filter((r) => {
+      const t = new Date(r.created_at ?? r.started_at ?? "").getTime();
+      return Number.isNaN(t) ? false : t >= cutoff;
+    });
+  }, [runs, windowDays]);
+
   const chart = useMemo(() => {
+    // The full selected window, not a silent cap at 30 — plotting 30 days and
+    // labelling it 90 is the chart telling the reader something untrue.
     const { labels, keys, counts, grain } = bucketSeries(
-      runs,
+      windowed,
       (r) => r.created_at,
-      Math.min(windowDays, 30),
+      windowDays,
     );
     const by = (p: (r: Run) => boolean) =>
-      bucketCountsBy(runs, keys, (r) => r.created_at, p, grain);
+      bucketCountsBy(windowed, keys, (r) => r.created_at, p, grain);
     return {
       labels,
       grain,
@@ -88,11 +102,11 @@ export function Dashboard() {
       completed: by((r) => r.status === "completed"),
       failed: by((r) => r.status === "failed"),
     };
-  }, [runs, windowDays]);
+  }, [windowed, windowDays]);
 
   const outcomes: Slice[] = useMemo(() => {
     const by = new Map<string, number>();
-    for (const r of runs) by.set(r.status, (by.get(r.status) ?? 0) + 1);
+    for (const r of windowed) by.set(r.status, (by.get(r.status) ?? 0) + 1);
     const palette: Record<string, string> = {
       completed: "var(--viz-4)",
       awaiting_approval: "var(--viz-5)",
@@ -109,7 +123,7 @@ export function Dashboard() {
         value,
         color: palette[status] ?? "var(--viz-2)",
       }));
-  }, [runs]);
+  }, [windowed]);
 
   const hasHistory = chart.total.some((v) => v > 0);
 
@@ -278,7 +292,7 @@ export function Dashboard() {
                 <>
                   <span>Run activity</span>
                   <span className="faint" style={{ fontSize: "var(--fs-xs)", fontWeight: 400 }}>
-                    {chart.grain === "hour" ? "hourly, last 24 hours" : `daily, last ${Math.min(windowDays, 30)} days`}
+                    {chart.grain === "hour" ? "hourly, last 24 hours" : `daily, last ${windowDays} days`}
                   </span>
                   <div className="panel__head-actions">
                     <span className="legend__item" style={{ fontSize: "var(--fs-xs)" }}>

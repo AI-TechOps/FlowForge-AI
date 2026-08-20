@@ -35,6 +35,10 @@ export class Unauthenticated extends ApiError {
   }
 }
 
+/** Fired once per 401, so the app can end the session rather than each screen
+ *  rendering an error it has no way to recover from. */
+export const UNAUTHENTICATED_EVENT = "flowforge:unauthenticated";
+
 type Query = Record<string, string | number | boolean | null | undefined>;
 
 export function withQuery(path: string, query?: Query): string {
@@ -106,6 +110,13 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
   if (response.status === 401) {
     // A stored token that no longer verifies is worse than none at all.
     clearToken();
+    // Clearing storage is not the same as ending the session. The live React
+    // token is separate state, and the identity query stays fresh for five
+    // minutes — so without this the shell, the sidebar and the previous
+    // screen's cached data all stayed mounted around an error, with no
+    // credential left to recover with. Announce it once, here, so every 401
+    // from every screen ends the same way.
+    window.dispatchEvent(new Event(UNAUTHENTICATED_EVENT));
     throw new Unauthenticated(await readDetail(response));
   }
 

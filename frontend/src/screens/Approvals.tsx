@@ -15,8 +15,8 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
-import { useApproval, useApprovals, useDecide, useRun } from "../api/hooks";
-import type { Approval, ProposedAction } from "../api/types";
+import { useAgentConfig, useApproval, useApprovals, useDecide, useRun, useTicket } from "../api/hooks";
+import type { AgentConfig, Approval, ProposedAction } from "../api/types";
 import {
   Badge,
   Empty,
@@ -120,6 +120,17 @@ function ApprovalCard({ approvalId }: { approvalId: string }) {
   const canDecide = useHasRole("approver");
   const decide = useDecide(approvalId);
   const toast = useToast();
+  const run = useRun(approval.data?.run_id);
+  // Fetched here so the taxonomy is warm before anyone opens the edit form —
+  // validation that cannot name the allowed values is validation that passes
+  // everything.
+  const config = useAgentConfig();
+  // The approval carries `ticket_id`; fall back to the run when an older
+  // payload omits it, so the card still names its subject. Resolved before the
+  // early returns below — a hook behind a conditional return is a hook that
+  // changes order between renders.
+  const ticketId = approval.data?.ticket_id ?? run.data?.ticket_id ?? null;
+  const ticket = useTicket(ticketId ?? undefined);
   const [mode, setMode] = useState<"edit" | "reject" | null>(null);
 
   if (approval.isPending) return <Panel><Loading rows={6} /></Panel>;
@@ -150,6 +161,24 @@ function ApprovalCard({ approvalId }: { approvalId: string }) {
         }
       >
         <dl className="dl">
+          {/* The affected ticket, first. The personas doc lists it among the
+              approval card's required contents, and it was missing: an
+              approver was being asked to authorise a priority or team write
+              without being told which ticket would change. */}
+          <dt>Ticket</dt>
+          <dd {...testid(TID.approvalTicket)}>
+            {ticket.data ? (
+              <>
+                <Link to="/tickets">{ticket.data.title}</Link>
+                {ticket.data.service && <span className="faint"> · {ticket.data.service}</span>}
+              </>
+            ) : (
+              <span className="faint">loading…</span>
+            )}
+            <div className="mono faint" style={{ fontSize: "var(--fs-xs)", marginTop: 2 }}>
+              {ticketId ?? "unknown ticket"}
+            </div>
+          </dd>
           <dt>Run</dt>
           <dd>
             <Link to={`/runs/${a.run_id}`}>
@@ -289,6 +318,7 @@ function ApprovalCard({ approvalId }: { approvalId: string }) {
       {mode === "edit" && (
         <EditModal
           actions={actions}
+          taxonomy={config.data?.taxonomy}
           pending={decide.isPending}
           onClose={() => setMode(null)}
           onSubmit={(final) =>
@@ -380,30 +410,88 @@ function EvidenceSummary({ runId }: { runId: string }) {
   );
 }
 
+/**
+ * Allowed values per proposed field, from the same taxonomy the agent's own
+ * output is validated against. A field with no governed set (an internal note)
+ * is free text and only has to be non-empty.
+ */
+function allowedFor(
+  field: string | null | undefined,
+  taxonomy: AgentConfig["taxonomy"] | undefined,
+): string[] | null {
+  if (!taxonomy) return null;
+  switch (field) {
+    case "priority":
+      return taxonomy.priorities;
+    case "assigned_team":
+      return taxonomy.teams;
+    case "category":
+      return taxonomy.categories;
+    case "urgency":
+      return taxonomy.urgencies;
+    default:
+      return null;
+  }
+}
+
 function EditModal({
   actions,
+  taxonomy,
   pending,
   onClose,
   onSubmit,
 }: {
   actions: ProposedAction[];
+  taxonomy: AgentConfig["taxonomy"] | undefined;
   pending: boolean;
   onClose: () => void;
   onSubmit: (final: ProposedAction[]) => void;
 }) {
   const [values, setValues] = useState(actions.map((a) => String(a.new_value ?? "")));
+  const [touched, setTouched] = useState(false);
   const changed = values.some((v, i) => v !== String(actions[i]?.new_value ?? ""));
+
+  /**
+   * Validation before authorisation, not after.
+   *
+   * This form used to accept any string that differed from the proposal, so an
+   * approver could authorise `P99-not-a-priority` and the client would POST it
+   * — the "validated form" the screen contract promises was a diff check. An
+   * out-of-taxonomy value is refused here; the server validates independently
+   * and remains the enforcer.
+   */
+  const errors = actions.map((action, i) => {
+    const value = (values[i] ?? "").trim();
+    if (value === "") return "This value cannot be empty.";
+    const allowed = allowedFor(action.field, taxonomy);
+    if (allowed === null) {
+      // An enum field whose taxonomy has not loaded must not be waved through:
+      // "we could not check" is not "it is fine".
+      const governed = ["priority", "assigned_team", "category", "urgency"];
+      if (action.field && governed.includes(action.field)) {
+        return "Waiting for the agent taxonomy before this value can be checked.";
+      }
+      return null;
+    }
+    if (!allowed.includes(value)) {
+      return `Not a valid ${action.field}. Allowed: ${allowed.join(", ")}.`;
+    }
+    return null;
+  });
+  const valid = errors.every((e) => e === null);
 
   const submit = (event: React.FormEvent) => {
     event.preventDefault();
+    setTouched(true);
+    if (!valid) return;
     // Both proposals survive: the original is already stored on the approval,
     // and the edited values go alongside it so the audit trail can show what a
     // human changed and why (G6.4).
     onSubmit(
       actions.map((action, i) => ({
         ...action,
-        new_value: values[i],
-        args: { ...(action.args ?? {}), [String(action.field ?? "value")]: values[i] },
+        new_value: (values[i] ?? "").trim(),
+        args: { ...(action.args ?? {}), [String(action.field ?? "value")]: (values[i] ?? "").trim() },
       })),
     );
   };
@@ -430,26 +518,49 @@ function EditModal({
       }
     >
       <form id="edit-approval" onSubmit={submit} className="stack" {...testid(TID.editForm)}>
-        {actions.map((action, i) => (
-          <div className="field" key={i}>
-            <label className="field__label" htmlFor={`edit-${i}`}>
-              <Mono>{action.tool}</Mono> — {action.field ?? "value"}
-            </label>
-            <input
-              id={`edit-${i}`}
-              className="input"
-              value={values[i] ?? ""}
-              onChange={(e) =>
-                setValues((prev) => prev.map((v, j) => (j === i ? e.target.value : v)))
-              }
-              {...testid(TID.editValue(i))}
-            />
-            <span className="field__hint">
-              Agent proposed <strong>{String(action.new_value ?? "—")}</strong>; current value is{" "}
-              {String(action.current_value ?? "not set")}.
-            </span>
-          </div>
-        ))}
+        {actions.map((action, i) => {
+          const allowed = allowedFor(action.field, taxonomy);
+          const listId = `edit-allowed-${i}`;
+          const error = touched ? errors[i] : null;
+          return (
+            <div className="field" key={i}>
+              <label className="field__label" htmlFor={`edit-${i}`}>
+                <Mono>{action.tool}</Mono> — {action.field ?? "value"}
+              </label>
+              {/* A datalist rather than a select: it offers the governed values
+                  as an affordance while staying a text input, so a value typed
+                  by hand is still checked rather than silently impossible. */}
+              <input
+                id={`edit-${i}`}
+                className="input"
+                list={allowed ? listId : undefined}
+                value={values[i] ?? ""}
+                aria-invalid={error ? "true" : undefined}
+                onChange={(e) =>
+                  setValues((prev) => prev.map((v, j) => (j === i ? e.target.value : v)))
+                }
+                {...testid(TID.editValue(i))}
+              />
+              {allowed && (
+                <datalist id={listId}>
+                  {allowed.map((option) => (
+                    <option key={option} value={option} />
+                  ))}
+                </datalist>
+              )}
+              {error ? (
+                <span className="field__error" {...testid(TID.editError(i))}>
+                  {error}
+                </span>
+              ) : (
+                <span className="field__hint">
+                  Agent proposed <strong>{String(action.new_value ?? "—")}</strong>; current value is{" "}
+                  {String(action.current_value ?? "not set")}.
+                </span>
+              )}
+            </div>
+          );
+        })}
         <div className="banner banner--info">
           Both versions are kept. The audit record shows the agent&apos;s original proposal and
           your edit side by side.

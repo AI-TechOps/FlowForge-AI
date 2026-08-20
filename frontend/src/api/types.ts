@@ -81,6 +81,19 @@ export interface ProposedAction {
   args?: Record<string, unknown>;
 }
 
+/** One audit row as embedded in a run detail response. */
+export interface RunAuditEntry {
+  actor: string;
+  tool: string;
+  payload: unknown;
+  result: unknown;
+  latency_ms: number | null;
+  tokens_in: number | null;
+  tokens_out: number | null;
+  cost_estimate: number | null;
+  created_at: string;
+}
+
 /** GET /api/runs/{id} */
 export interface Run {
   id: string;
@@ -97,6 +110,13 @@ export interface Run {
   started_at?: string | null;
   finished_at?: string | null;
   created_at?: string;
+  /**
+   * Present on run *detail* only, and already tenant-scoped for every persona.
+   * Run detail is an any-persona screen, so its audit panel reads from here
+   * rather than from the administrator-only `/api/audit` — which is why an
+   * operator saw no trail at all.
+   */
+  audit_entries?: RunAuditEntry[];
 }
 
 /** GET /api/runs */

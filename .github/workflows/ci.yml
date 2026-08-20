@@ -329,6 +329,15 @@ jobs:
           npx playwright install --with-deps chromium
           npx playwright test
 
+      # Codex's Phase 6 adversarial probes. They carry their own Playwright
+      # config (own testMatch and output dir) so the official gate config stays
+      # untouched, which means the default `playwright test` above does not
+      # collect them — they need their own invocation or they silently rot.
+      - name: Run Phase 6 adversarial probes
+        env:
+          PHASE6_BASE_URL: http://localhost:5173
+        run: npx playwright test --config=tests/adversarial/phase6.playwright.config.ts
+
       - name: Playwright report on failure
         if: failure()
         uses: actions/upload-artifact@v4

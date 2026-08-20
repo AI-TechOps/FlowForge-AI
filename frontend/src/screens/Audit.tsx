@@ -49,6 +49,8 @@ export function Audit() {
   const [actor, setActor] = useState("");
   const [tool, setTool] = useState("");
   const [runId, setRunId] = useState("");
+  const [since, setSince] = useState("");
+  const [until, setUntil] = useState("");
   const [offset, setOffset] = useState(0);
   const [expanded, setExpanded] = useState<string | null>(null);
 
@@ -57,10 +59,16 @@ export function Audit() {
       actor: actor || undefined,
       tool: tool || undefined,
       run_id: runId || undefined,
+      // The screen contract is "filterable by run, actor, tool, and date
+      // range". The range was missing entirely; `useAudit` already accepted
+      // both ends. A date alone parses as midnight, so `until` is pushed to
+      // the end of its day — otherwise picking today returns nothing.
+      since: since || undefined,
+      until: until ? `${until}T23:59:59` : undefined,
       limit: PAGE,
       offset,
     }),
-    [actor, tool, runId, offset],
+    [actor, tool, runId, since, until, offset],
   );
 
   const audit = useAudit(filters);
@@ -109,7 +117,25 @@ export function Audit() {
               aria-label="Filter by run"
               {...testid(TID.auditFilterRun)}
             />
-            {(actor || tool || runId) && (
+            <input
+              className="input"
+              type="date"
+              value={since}
+              onChange={(e) => resetTo(() => setSince(e.target.value))}
+              aria-label="Filter from date"
+              title="From date"
+              {...testid(TID.auditFilterSince)}
+            />
+            <input
+              className="input"
+              type="date"
+              value={until}
+              onChange={(e) => resetTo(() => setUntil(e.target.value))}
+              aria-label="Filter until date"
+              title="Until date"
+              {...testid(TID.auditFilterUntil)}
+            />
+            {(actor || tool || runId || since || until) && (
               <button
                 type="button"
                 className="btn btn--ghost btn--sm"
@@ -118,6 +144,8 @@ export function Audit() {
                     setActor("");
                     setTool("");
                     setRunId("");
+                    setSince("");
+                    setUntil("");
                   })
                 }
               >
@@ -136,7 +164,7 @@ export function Audit() {
           <Empty
             title="No audit entries"
             body={
-              actor || tool || runId
+              actor || tool || runId || since || until
                 ? "No entries match these filters."
                 : "Nothing has run yet. Every agent step and human decision will appear here."
             }

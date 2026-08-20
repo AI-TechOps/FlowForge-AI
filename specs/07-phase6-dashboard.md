@@ -96,7 +96,7 @@ Gates bind to `data-testid` attributes, never to text or CSS classes — a gate 
 | 14 | [CC] | Loading / empty / error state pass across every screen | G6.5 |
 | 15 | [CC] | Production Dockerfile (build + nginx), compose wiring, CI: `tsc`, Vitest, Playwright | — |
 | 16 | [CC] | README / ARCHITECTURE / DECISIONS updated — **in this PR, before merge** | — |
-| 17 | [CX] | Adversarial pass + cold diff review | — |
+| 17 | [CX] | ~~Adversarial pass + cold diff review~~ **Done** — 7 findings, all fixed (D22) | — |
 
 **Sequencing note:** unlike the backend phases, an end-to-end gate cannot be written before the thing it drives exists. Task 3 is what preserves the gates-first discipline: the selector contract is the interface, so Codex writes G6.1–G6.5 at task 4 against screens that do not exist yet, and they stay red until tasks 5–13 land. That red window is expected and is the point.
 

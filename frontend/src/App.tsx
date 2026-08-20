@@ -12,6 +12,9 @@ import { useCallback, useEffect, useState } from "react";
 import { Navigate, Route, Routes, useNavigate } from "react-router-dom";
 
 import { authConfig, completeAuth0Login, storedToken } from "./auth";
+import { UNAUTHENTICATED_EVENT } from "./api/client";
+import { useQueryClient } from "@tanstack/react-query";
+
 import { useIdentity } from "./api/hooks";
 import { ErrorState, Loading } from "./components/ui";
 import { IdentityProvider, RequireRole, Shell } from "./shell/Shell";
@@ -48,6 +51,19 @@ export default function App() {
   }, [config]);
 
   const identity = useIdentity(Boolean(token));
+  const queryClient = useQueryClient();
+
+  // One place where an expired session ends. The API client announces every
+  // 401; this drops the React token and throws away the cache, because data
+  // fetched under a session that has ended must not survive it on screen.
+  useEffect(() => {
+    const onExpired = () => {
+      setToken(null);
+      queryClient.clear();
+    };
+    window.addEventListener(UNAUTHENTICATED_EVENT, onExpired);
+    return () => window.removeEventListener(UNAUTHENTICATED_EVENT, onExpired);
+  }, [queryClient]);
 
   // `loginLocal` and `completeAuth0Login` both persist the token themselves —
   // this only lifts it into React state so the tree re-renders.

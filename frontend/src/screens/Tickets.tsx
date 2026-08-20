@@ -38,6 +38,7 @@ export function Tickets() {
 
   const [status, setStatus] = useState("");
   const [service, setService] = useState("");
+  const [department, setDepartment] = useState("");
   const [seedOnly, setSeedOnly] = useState("");
   const [composing, setComposing] = useState(false);
 
@@ -45,9 +46,13 @@ export function Tickets() {
     () => ({
       status: status || undefined,
       service: service || undefined,
+      // The screen contract lists four filters — status, department, service
+      // and eval-seed — and department was the one missing. The hook and the
+      // API already supported it; only the control was absent.
+      department: department || undefined,
       is_eval_seed: seedOnly === "" ? undefined : seedOnly === "true",
     }),
-    [status, service, seedOnly],
+    [status, service, department, seedOnly],
   );
 
   const tickets = useTickets(filters);
@@ -112,6 +117,14 @@ export function Tickets() {
               aria-label="Filter by service"
               {...testid(TID.ticketFilterService)}
             />
+            <input
+              className="input"
+              placeholder="Department…"
+              value={department}
+              onChange={(e) => setDepartment(e.target.value)}
+              aria-label="Filter by department"
+              {...testid(TID.ticketFilterDepartment)}
+            />
             <select
               className="select"
               value={seedOnly}
@@ -137,7 +150,7 @@ export function Tickets() {
           <Empty
             title="No tickets match"
             body={
-              status || service || seedOnly
+              status || service || department || seedOnly
                 ? "Try clearing the filters above."
                 : "File one to watch the agent triage it end to end."
             }

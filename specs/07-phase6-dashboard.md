@@ -14,7 +14,7 @@ This phase is where the project stops being provable by `curl` and starts being 
 ## Scope (in) — the ten screens, exactly
 
 1. **Login** — Auth0 redirect + callback, or the local dev issuer's seeded identities. Shows identity + roles via `GET /api/me`; logout. Reworked into the app shell rather than rebuilt (Phase 4 already made this real).
-2. **Dashboard** (any persona) — `GET /api/metrics/summary` with a window selector (7/30/90 days). Cards for the scalars, one bar chart for run outcomes. **Role-aware by absence:** cost and evaluation accuracy are simply not in a non-admin's payload, so the UI renders what it receives rather than deciding who deserves what (D19 decision 6 as amended by D20).
+2. **Dashboard** (any persona) — `GET /api/metrics/summary` with a window selector (7/30/90 days). Metric cards for the scalars, an activity chart and an outcome donut, both derived client-side from `/api/runs` because no time-series endpoint exists. **Role-aware by absence:** cost and evaluation accuracy are simply not in a non-admin's payload, so the UI renders what it receives rather than deciding who deserves what (D19 decision 6 as amended by D20).
 3. **Knowledge documents** (admin) — `GET /api/documents`: status (pending/processing/ready/failed), version, chunk count, error message on failure, reingest action.
 4. **Upload document** (admin) — file picker (.pdf/.md/.txt), client-side size/type validation, `POST /api/documents` → returns to the list showing live ingestion status (poll while anything is processing).
 5. **Tickets** (any persona; create is operator) — `GET /api/tickets` with filters (status, department, service, `is_eval_seed`), row → detail, "Run triage" action for operators.
@@ -37,17 +37,17 @@ This phase is where the project stops being provable by `curl` and starts being 
 
 ### Visual design (D21 decisions 8–11)
 
-- **Both themes with a toggle**, dark by default. Every colour is a CSS custom property defined twice — `:root` for dark, `[data-theme="light"]` for light — so no component ever names a colour. Preference persists in `localStorage` and falls back to `prefers-color-scheme`.
+- **Both themes with a toggle**, dark by default. Every colour is a CSS custom property defined twice — `:root` for dark, `[data-theme="light"]` for light — so no component ever names a colour. Preference persists in `localStorage`. `prefers-color-scheme` is deliberately **not** consulted — it made "dark by default" mean "whatever the OS says", which changed what a demo recording looked like and what a browser gate saw.
 - **Developer-tool precision** (Cursor / Linear register): near-monochrome surfaces, one restrained accent, hairline borders rather than shadows, tight vertical rhythm, and status carried by small badges. Technical values — run ids, chunk refs, model names, hashes, JSON — are always monospace.
 - **Self-hosted Inter + JetBrains Mono** as `woff2` under `frontend/public/fonts`, declared with `@font-face` and `font-display: swap`. Static assets, not packages; no CDN, which the container could not reach anyway. Tabular figures (`font-variant-numeric: tabular-nums`) on every metric so digits do not jitter while polling.
-- **Left sidebar, compact density** (~34px rows). The sidebar lists only the routes the current role can use, which is what makes G6.2's role slicing legible in a single screenshot per persona.
+- **Left sidebar, compact density** (~36px rows). The sidebar lists only the routes the current role can use, which is what makes G6.2's role slicing legible in a single screenshot per persona.
 
 ## Scope (out)
 
 - Drag-and-drop agent builder (explicitly excluded by CLAUDE.md).
 - **User & role management** — the Administrator persona mentions it, but the ten-screen list omits it and no endpoint exists. Building it means new backend write APIs inside a frontend phase (D21 decision 5). Roles are seeded by `scripts/seed.py`.
 - Real-time push (SSE/WebSocket), mobile layouts (desktop-first, sane at laptop widths), i18n.
-- A charting dependency. The dashboard's metrics are a handful of scalars and rates; one hand-rolled SVG bar chart covers it (D21 decision 6).
+- A charting dependency. Every chart is hand-rolled SVG in `components/charts.tsx` (D21 decision 6, widened) — an area chart, a donut, ring gauges and sparklines, all reading the theme through CSS custom properties.
 
 ## Gates & checks
 
@@ -83,7 +83,7 @@ Gates bind to `data-testid` attributes, never to text or CSS classes — a gate 
 | 1 | [CC] | Record D21; update this spec with the resolved decisions and this plan | — |
 | 2 | [CC] | Frontend foundation: deps, router, typed API client, auth guard, app shell + role-aware nav, design tokens | — |
 | 3 | [CC] | **Selector contract** — `frontend/src/testids.ts` + the table in this spec, so gates can be written before screens exist | — |
-| 4 | [CX] | **Gate tests first:** G6.1–G6.5 in `tests/phase6/`, bound to the selector contract | all |
+| 4 | [CX] | ~~**Gate tests first:** G6.1–G6.5 in `tests/phase6/`, bound to the selector contract~~ **Done** — 13 specs, all green | all |
 | 5 | [CC] | Login reworked into the shell; 401 handling; logout | G6.2 |
 | 6 | [CC] | Dashboard — metric cards, window selector, SVG outcome chart, role-aware rendering | G6.2 |
 | 7 | [CC] | Knowledge documents + Upload, with ingestion-status polling and reingest | G6.5 |

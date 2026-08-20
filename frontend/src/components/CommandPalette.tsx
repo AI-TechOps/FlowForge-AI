@@ -46,10 +46,14 @@ export function CommandPalette({
   const [active, setActive] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Only fetched while the palette is open — a search surface should not cost
-  // two queries on every page load for a feature nobody has opened.
-  const tickets = useTickets();
-  const runs = useRuns({ limit: 25 });
+  // Gated on `open`, and the gating is the point: these hooks used to run
+  // unconditionally under a comment claiming they did not. That cost every
+  // page load two queries for a feature nobody had opened, and — worse — the
+  // palette's unfiltered ticket query shares a cache key with the Tickets
+  // screen's, so the screen inherited whatever the palette had fetched at
+  // login and rendered a stale status until it revalidated.
+  const tickets = useTickets({}, open);
+  const runs = useRuns({ limit: 25 }, open);
 
   useEffect(() => {
     if (open) {

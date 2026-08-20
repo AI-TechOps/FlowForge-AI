@@ -44,5 +44,12 @@ ENV API_PROXY_TARGET=http://backend:8000
 EXPOSE 5173
 
 # Fail the container's healthcheck if nginx stops serving the SPA shell.
-HEALTHCHECK --interval=15s --timeout=3s --start-period=5s --retries=3 \
-  CMD wget -qO- http://localhost:5173/ >/dev/null 2>&1 || exit 1
+#
+# 127.0.0.1, not localhost. nginx listens on IPv4 only, while `localhost`
+# inside the container resolves to ::1 first — so the check connected to an
+# IPv6 socket nothing was bound to and reported the container unhealthy for
+# every one of its three days of uptime, while the site served fine from the
+# host the whole time. Checking a service only from outside is how a broken
+# healthcheck survives.
+HEALTHCHECK --interval=15s --timeout=3s --start-period=10s --retries=3 \
+  CMD wget -qO- http://127.0.0.1:5173/ >/dev/null 2>&1 || exit 1

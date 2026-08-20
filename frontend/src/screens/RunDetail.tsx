@@ -388,11 +388,25 @@ export function RunDetail() {
                     should not be hunted for in a list of five. */}
                 {[...evidence]
                   .sort((a, b) => Number(citedIds.has(b.chunk_id)) - Number(citedIds.has(a.chunk_id)))
-                  .map((chunk) => (
-                    <div key={chunk.chunk_id} {...testid(TID.citation(chunk.chunk_id))}>
-                      <EvidenceItem chunk={chunk} cited={citedIds.has(chunk.chunk_id)} />
-                    </div>
-                  ))}
+                  .map((chunk) => {
+                    const cited = citedIds.has(chunk.chunk_id);
+                    return (
+                      <div
+                        key={chunk.chunk_id}
+                        // `citation-<id>` marks a chunk the model actually
+                        // cited — not merely one that retrieval returned. That
+                        // distinction is the whole point of the panel, and it
+                        // was wrong here: the id sat on all five retrieved
+                        // chunks, so "every citation resolves to evidence" was
+                        // trivially true and G6.3 could not have failed.
+                        // Retrieved-but-uncited chunks carry `evidence-<id>`
+                        // alone, which is what that id is for.
+                        {...(cited ? testid(TID.citation(chunk.chunk_id)) : {})}
+                      >
+                        <EvidenceItem chunk={chunk} cited={cited} />
+                      </div>
+                    );
+                  })}
               </div>
             </>
           )}

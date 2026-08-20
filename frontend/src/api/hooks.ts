@@ -113,8 +113,9 @@ export interface RunFilters {
   include_eval?: boolean;
 }
 
-export function useRuns(filters: RunFilters = {}) {
+export function useRuns(filters: RunFilters = {}, enabled = true) {
   return useQuery({
+    enabled,
     queryKey: keys.runs(filters),
     queryFn: ({ signal }) =>
       api.get<RunPage>("/api/runs", { ...filters } as Record<string, string>, signal),
@@ -141,8 +142,9 @@ export interface TicketFilters {
   is_eval_seed?: boolean;
 }
 
-export function useTickets(filters: TicketFilters = {}) {
+export function useTickets(filters: TicketFilters = {}, enabled = true) {
   return useQuery({
+    enabled,
     queryKey: keys.tickets(filters),
     queryFn: ({ signal }) =>
       api.get<Ticket[] | { tickets: Ticket[] }>(
@@ -267,6 +269,13 @@ export function useDecide(approvalId: string) {
       void qc.invalidateQueries({ queryKey: keys.approvals });
       void qc.invalidateQueries({ queryKey: keys.approval(approvalId) });
       void qc.invalidateQueries({ queryKey: ["runs"] });
+      // Tickets too: approving executes a write against the ticket system, so
+      // the ticket's status, team and priority all change. Without this a
+      // ticket list opened afterwards shows the pre-approval row until the
+      // cache goes stale on its own — the screen contradicting the decision
+      // the user just made on the previous screen.
+      void qc.invalidateQueries({ queryKey: ["tickets"] });
+      void qc.invalidateQueries({ queryKey: ["ticket"] });
     },
   });
 }

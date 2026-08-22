@@ -73,6 +73,12 @@ Apply migrations (one-time, with the stack up — alembic ships in the backend i
 docker compose -f infra/docker-compose.yml exec backend alembic upgrade head
 ```
 
+Every migration has a working `downgrade()`, and that is checked rather than
+claimed: `scripts/check_migration_cycle.py` runs `upgrade head → downgrade base
+→ upgrade head` against a scratch database in CI, so every downgrade in the
+chain actually executes. A migration you cannot reverse is a migration you
+cannot deploy twice.
+
 Seed the demo org from the host (backend deps installed locally: `pip install -e backend`, with `.env` pointing at localhost):
 
 ```bash
@@ -558,18 +564,3 @@ then open `localhost:5173`.
 
 Steps 2–3 and 5–9 are background work on the `worker` service; the UI polls and
 stops polling once each settles.
-
-### Phase 0 foundations, still true
-
-The floor the above stands on, from the first phase:
-
-1. `docker compose -f infra/docker-compose.yml up --build` — all five services
-   start (db, redis, backend, worker, frontend); db and redis have healthchecks
-   and the backend waits for both.
-2. `curl localhost:8000/api/health` — real pings, not a static 200:
-   `{"status":"ok","db":"ok","redis":"ok"}`.
-3. `localhost:5173` shows the same health in the top bar — "All systems
-   operational", or "Backend unreachable" when it is not.
-4. `alembic upgrade head` builds the schema and **every migration has a working
-   `downgrade()`**; `python scripts/seed.py` is idempotent.
-5. `.env.example` documents every required variable.

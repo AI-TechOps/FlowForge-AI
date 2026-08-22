@@ -532,10 +532,44 @@ Worth knowing, because both looked green:
 A gate that cannot fail is worse than no gate, because it looks like coverage.
 Both fixes are recorded in `DECISIONS.md` (D22).
 
-## Phase 0 definition-of-done walkthrough
+## The MVP definition of done, walked through
 
-1. `docker compose -f infra/docker-compose.yml up --build` — all four services start; db and redis have healthchecks, backend waits for both.
-2. `curl localhost:8000/api/health` — real pings: `{"status":"ok","db":"ok","redis":"ok"}`.
-3. Open `localhost:5173` — green dot, "backend ok".
-4. `alembic upgrade head` creates `organizations`, `users`, `user_roles`; `python scripts/seed.py` inserts the demo org + admin. Every migration has a working `downgrade()`.
-5. `.env.example` documents all seven required vars.
+This is the ten-step journey from `CLAUDE.md` — the definition of done for the
+whole project, not for one phase. Every step below is clickable in the UI today,
+and the whole sequence runs as an automated gate (**G6.1**) against nginx serving
+the production build, so it is checked on every pull request rather than
+remembered.
+
+Bring the stack up, migrate, seed, and load the corpus first (see *Running*),
+then open `localhost:5173`.
+
+| # | Do this | What proves it |
+|---|---|---|
+| 1 | Sign in as `admin@demo` | Sidebar shows the administrator's routes; `GET /api/me` returns the roles |
+| 2 | **Knowledge → Upload** an IT policy (`.pdf`, `.md`, `.txt`) | 202 with a document id; the row appears immediately |
+| 3 | Watch the row reach **ready** | Extracted, chunked, embedded and stored in pgvector with title, version, page and section — the metadata citations are made of |
+| 4 | Sign out, sign in as `operator@demo`, file a VPN ticket | The ticket appears in the list with status `new` |
+| 5 | **Run triage** | The run opens and moves `queued → running`; the structured result carries category, urgency, team, priority, confidence and citations, all Pydantic-validated |
+| 6 | Read the **evidence panel** | Every retrieved chunk with its document, page and section; the cited ones marked, and any citation that does **not** resolve named rather than hidden. No valid citation, no grounding — the run fails as `ungrounded` instead of reporting success |
+| 7 | The run **pauses** at `awaiting_approval` | A real LangGraph interrupt checkpointed to Postgres — the job ended; nothing is holding a connection open |
+| 8 | Sign in as `approver@demo` and open the **Approval inbox** | The card shows the affected ticket, proposed action, new vs existing values, evidence, confidence, risk and agent version. The operator and the administrator both get **403** here: the agent proposes, a different person disposes |
+| 9 | Approve (or edit, or reject) | The write executes against the mock ticket system, the ticket is re-fetched for confirmation, and the run reaches `completed`. Reject writes nothing and ends `rejected` |
+| 10 | Open the **Dashboard** and the **Audit log** | The run is in the metrics and the recent list; the trail carries every agent step, tool call, model call and the human decision, with tokens, latency and cost |
+
+Steps 2–3 and 5–9 are background work on the `worker` service; the UI polls and
+stops polling once each settles.
+
+### Phase 0 foundations, still true
+
+The floor the above stands on, from the first phase:
+
+1. `docker compose -f infra/docker-compose.yml up --build` — all five services
+   start (db, redis, backend, worker, frontend); db and redis have healthchecks
+   and the backend waits for both.
+2. `curl localhost:8000/api/health` — real pings, not a static 200:
+   `{"status":"ok","db":"ok","redis":"ok"}`.
+3. `localhost:5173` shows the same health in the top bar — "All systems
+   operational", or "Backend unreachable" when it is not.
+4. `alembic upgrade head` builds the schema and **every migration has a working
+   `downgrade()`**; `python scripts/seed.py` is idempotent.
+5. `.env.example` documents every required variable.

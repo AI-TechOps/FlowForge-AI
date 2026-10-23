@@ -11,6 +11,7 @@ Enterprise AI workflow automation platform. AI agents read support tickets, retr
 - `specs/01-phase0-foundation.md` … `specs/08-phase7-ship.md` — one spec per phase (0–7), each reviewed and approved before its task plan is written. Phases 0–6 are approved and built; Phase 7 is the remaining spec review.
 - `specs/09-demo-enterprise-corpus.md` — the fictional company (Meridian Dynamics), its documentation template, corpus, and labeled ticket set.
 - `specs/10-codex-integration.md` — Codex's lanes, boundaries, and the Claude↔Codex handoff protocol per phase.
+- `specs/11-cerebras-provider.md` — Cerebras Inference as an opt-in hosted provider for the eval judge (draft, awaiting review).
 
 ## How we build: spec-driven development
 

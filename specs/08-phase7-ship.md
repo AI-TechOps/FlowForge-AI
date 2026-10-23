@@ -16,6 +16,7 @@ The project becomes presentable: deployed once to AWS for a recorded demo, torn 
 - `docker-compose.prod.yml`: backend, frontend, db, redis, worker as distinct services; healthchecks; restart policies; volumes for Postgres data + uploads.
 - Config strictness: prod refuses to start with missing required env vars, debug endpoints disabled (`APP_ENV=prod` kills the dev-only retrieve endpoint), CORS locked to the deployed origin.
 - LLM in prod-demo: decide at plan review — OpenAI (small budget, better output for the recording) with cost cap, or Ollama on the instance (needs a larger instance). Default proposal: OpenAI for the recorded demo, spend ≤ $10.
+  - *Re-pointed by spec 11 (D23, 2026-10-22, pending review):* Cerebras (`gpt-oss-120b`) is a third chat option at near-zero spend, but it **has no embeddings endpoint**, so it does not remove Ollama from the instance by itself. Choosing it means building spec 11's deferred chat/embedding provider split here, plus an embedding source: Ollama serving `nomic-embed-text` only (small next to an 8B chat model), or OpenAI embeddings. So the plan-review choice is now among: OpenAI for both; Cerebras chat + Ollama embeddings; Cerebras chat + OpenAI embeddings; Ollama for both on a larger instance. Triage on `gpt-oss-120b` also forces the judge to a different family (spec 11 G11.4).
 
 ### 2. AWS deployment (single EC2 + Compose — deliberate simplicity, D11)
 - One EC2 instance (free-tier eligible size if it fits; else smallest that runs the stack), security group: 80/443 + SSH from own IP only.

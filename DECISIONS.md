@@ -304,7 +304,12 @@ Gates bind to `data-testid` attributes registered in `frontend/src/testids.ts`, 
 
 ---
 
-## Open items (as of 2026-08-16)
+## Open items (as of 2026-10-22)
+
+- **Spec 11 (Cerebras provider) awaits review** — `specs/11-cerebras-provider.md`, D23. Ten decisions to confirm; the task plan follows approval.
+- **The D5 family check fails open across provider naming conventions** (spec 11 §5, G11.4). Measured against the current validator: `gpt-oss:120b`/`gpt-oss-120b` (same weights), `gpt-oss:20b`/`gpt-oss-120b` and `qwen3:8b`/`qwen-3.8-27b` are all accepted. No configuration in use today trips it, since the default `llama3.1:8b`/`qwen2.5:7b` pair is genuinely separate. But it is a live defect in a guarantee this file claims, not a Cerebras feature, and it stays open until spec 11's fix lands.
+- **Only one code owner can exercise the Cerebras path.** The key is on a personal account with expiring credits, so G11.8 and any Cerebras-judged baseline row can be produced by one person only, and goes dark when the credit ends. This has the same shape as the Auth0 tenant item below. Recorded so the asymmetry is known in advance rather than discovered in review. It is also why spec 11 keeps the local judge as the default.
+- **G1.5 and G5.5 are unchanged by spec 11** (its assessment section). A model swap is not an `agent_version` change, and no model may write the answer key. G1.5 is still a human reading 20 tickets, starting with EVAL-012 and EVAL-019.
 
 - **G5.5's checked-in artifact has one `agent_version`, and no code change fixes that** (D20 finding 8). The property G5.5 asks for is comparability, and the mechanism is proven: metric keys are identical by construction, and the API gate displays two versions side by side. What the *committed table* cannot yet show is two real versions, because `AGENT_VERSION` is still `triage-v1` — Phase 5 built an eval harness and changed no prompt. The three real-model rows differ in nothing because nothing differed. Closing this honestly requires a genuine prompt change with a batch on each side of it, which is Phase 6/7 work; closing it by bumping a version label on an identical run would put a fabricated comparison in the one document whose value is that its numbers were not fitted. Recorded as open rather than papered over.
 
